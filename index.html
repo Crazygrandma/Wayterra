@@ -1,0 +1,263 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Wayterra Vibecoded Webdemo Prototype</title>
+<style>
+  html,body { margin:0;height:100%; }
+  #toolbar { padding:8px;background:#eee;border-bottom:1px solid #ccc;font:14px sans-serif; }
+  canvas { width:100%;height:calc(100vh - 40px);display:block; background:#222; cursor:default; }
+</style>
+</head>
+<body>
+<div id="toolbar">Move: WASD / Arrows. Window type: 1 = blue, 2 = text. Zoom: + / -</div>
+<canvas id="c"></canvas>
+
+<script>
+/* ---------- Canvas setup ---------- */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = Math.floor(canvas.clientWidth * devicePixelRatio);
+  canvas.height = Math.floor(canvas.clientHeight * devicePixelRatio);
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+addEventListener('resize', resize);
+resize();
+
+/* ---------- Camera / Player (movement restored) ---------- */
+const player = { x: 200, y: 200, speed: 180 }; // speed in pixels/second
+const camera = { x: 0, y: 0, zoom: 1 };
+
+const keys = {};
+addEventListener('keydown', (e) => { keys[e.key] = true; });
+addEventListener('keyup',   (e) => { keys[e.key] = false; });
+
+let lastTime = performance.now();
+function updatePlayer(dt) {
+  // dt in seconds
+  let vx = 0, vy = 0;
+  if (keys['w'] || keys['ArrowUp'])    vy -= 1;
+  if (keys['s'] || keys['ArrowDown'])  vy += 1;
+  if (keys['a'] || keys['ArrowLeft'])  vx -= 1;
+  if (keys['d'] || keys['ArrowRight']) vx += 1;
+
+  // normalize diagonal
+  if (vx !== 0 && vy !== 0) {
+    const inv = 1/Math.sqrt(2);
+    vx *= inv; vy *= inv;
+  }
+
+  player.x += vx * player.speed * dt;
+  player.y += vy * player.speed * dt;
+
+  // camera centers on player (account for zoom)
+  const viewW = (canvas.width / devicePixelRatio) / camera.zoom;
+  const viewH = (canvas.height / devicePixelRatio) / camera.zoom;
+  camera.x = player.x - viewW / 2;
+  camera.y = player.y - viewH / 2;
+}
+
+/* ---------- Window classes & types ---------- */
+class BaseWindow {
+  constructor(x, y, w = 220, h = 140) {
+    this.id = ++BaseWindow._id;
+    this.x = x; this.y = y;
+    this.w = w; this.h = h;
+    this.drag = false; this.ox = 0; this.oy = 0;
+    this.max = false; this.prev = null;
+  }
+  headerHeight() { return 22; }
+  contains(px, py) { return px >= this.x && px <= this.x + this.w && py >= this.y && py <= this.y + this.h; }
+  closeRect() { return { x: this.x + this.w - 26, y: this.y + 4, w: 18, h: 14 }; }
+  maxRect()   { return { x: this.x + this.w - 52, y: this.y + 4, w: 18, h: 14 }; }
+  clickClose(px,py) { const r = this.closeRect(); return px>=r.x && px<=r.x+r.w && py>=r.y && py<=r.y+r.h; }
+  clickMax(px,py)   { const r = this.maxRect();   return px>=r.x && px<=r.x+r.w && py>=r.y && py<=r.y+r.h; }
+  toggleMax() {
+    if (!this.max) {
+      this.prev = { x: this.x, y: this.y, w: this.w, h: this.h };
+      this.x = camera.x + 10;
+      this.y = camera.y + 10;
+      this.w = (canvas.width / devicePixelRatio) / camera.zoom - 20;
+      this.h = (canvas.height / devicePixelRatio) / camera.zoom - 20;
+      this.max = true;
+    } else {
+      if (this.prev) { this.x = this.prev.x; this.y = this.prev.y; this.w = this.prev.w; this.h = this.prev.h; }
+      this.max = false;
+    }
+  }
+  drawSkeleton() {
+    // body
+    ctx.fillStyle = '#f0f0f0';
+    roundRectFill(this.x, this.y, this.w, this.h, 6);
+    // title bar
+    ctx.fillStyle = '#2f6ef0';
+    roundRectTopFill(this.x, this.y, this.w, this.headerHeight(), 6);
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px system-ui,Segoe UI,Roboto,Arial';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`Window ${this.id}`, this.x + 8, this.y + this.headerHeight()/2);
+    // close
+    const c = this.closeRect();
+    ctx.fillStyle = '#ff4d4d';
+    roundRectFill(c.x, c.y, c.w, c.h, 3);
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(c.x+4,c.y+4); ctx.lineTo(c.x+c.w-4,c.y+c.h-4); ctx.moveTo(c.x+c.w-4,c.y+4); ctx.lineTo(c.x+4,c.y+c.h-4); ctx.stroke();
+    // maximize
+    const m = this.maxRect();
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    roundRectFill(m.x, m.y, m.w, m.h, 3);
+    ctx.strokeStyle = 'white'; ctx.lineWidth = 1.2;
+    ctx.strokeRect(m.x+3, m.y+3, m.w-6, m.h-6);
+  }
+  drawContent() { /* override */ }
+  draw() { this.drawSkeleton(); this.drawContent(); }
+}
+BaseWindow._id = 0;
+
+class BlueWindow extends BaseWindow {
+  drawContent() {
+    ctx.fillStyle = '#1e90ff';
+    roundRectFill(this.x + 6, this.y + this.headerHeight() + 6, this.w - 12, this.h - this.headerHeight() - 12, 4);
+  }
+}
+
+class TextWindow extends BaseWindow {
+  drawContent() {
+    ctx.fillStyle = '#ffffff';
+    roundRectFill(this.x + 6, this.y + this.headerHeight() + 6, this.w - 12, this.h - this.headerHeight() - 12, 4);
+    ctx.fillStyle = '#222';
+    ctx.font = '13px system-ui,Segoe UI,Roboto,Arial';
+    ctx.fillText(`This is text window ${this.id}`, this.x + 12, this.y + 48);
+  }
+}
+
+/* ---------- Helpers ---------- */
+function roundRectFill(x,y,w,h,r){
+  ctx.beginPath();
+  const rr = Math.min(r, w/2, h/2);
+  ctx.moveTo(x+rr, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, rr);
+  ctx.arcTo(x+w, y+h, x,   y+h, rr);
+  ctx.arcTo(x,   y+h, x,   y,   rr);
+  ctx.arcTo(x,   y,   x+w, y,   rr);
+  ctx.closePath();
+  ctx.fill();
+}
+function roundRectTopFill(x,y,w,h,r){
+  // Rounded only top corners for titlebar
+  ctx.beginPath();
+  const rr = Math.min(r, w/2, h/2);
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x, y + h);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* ---------- Window management ---------- */
+const windows = [];
+let selectedType = 1;
+
+function spawnWindow(x, y) {
+  const win = (selectedType === 1) ? new BlueWindow(x, y) : new TextWindow(x, y);
+  windows.push(win);
+  return win;
+}
+
+function screenToWorld(evt) {
+  const r = canvas.getBoundingClientRect();
+  const sx = (evt.clientX - r.left);
+  const sy = (evt.clientY - r.top);
+  return { x: sx / camera.zoom + camera.x, y: sy / camera.zoom + camera.y };
+}
+
+/* ---------- Input: mouse & keys ---------- */
+canvas.addEventListener('mousedown', (e) => {
+  const p = screenToWorld(e);
+  // topmost first
+  for (let i = windows.length - 1; i >= 0; i--) {
+    const w = windows[i];
+    if (w.contains(p.x, p.y)) {
+      // bring to top
+      windows.push(windows.splice(i, 1)[0]);
+      if (w.clickClose(p.x, p.y)) { windows.splice(windows.indexOf(w), 1); return; }
+      if (w.clickMax(p.x, p.y)) { w.toggleMax(); return; }
+      // start drag
+      w.drag = true;
+      w.ox = p.x - w.x; w.oy = p.y - w.y;
+      return;
+    }
+  }
+  // click empty space -> spawn window
+  spawnWindow(p.x, p.y);
+});
+
+canvas.addEventListener('mouseup', () => { windows.forEach(w => w.drag = false); });
+
+canvas.addEventListener('mousemove', (e) => {
+  const p = screenToWorld(e);
+  windows.forEach(w => { if (w.drag) { w.x = p.x - w.ox; w.y = p.y - w.oy; } });
+});
+
+addEventListener('click', (e) => {
+  // allow clicking close that was released quickly (already handled on mousedown)
+});
+
+addEventListener('keydown', (e) => {
+  if (e.key === '1') selectedType = 1;
+  if (e.key === '2') selectedType = 2;
+  if (e.key === '+') camera.zoom = Math.min(camera.zoom + 0.1, 3);
+  if (e.key === '-') camera.zoom = Math.max(camera.zoom - 0.1, 0.3);
+});
+
+/* ---------- Main loop ---------- */
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  updatePlayer(dt);
+
+  // clear
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // world transform
+  ctx.save();
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(-camera.x, -camera.y);
+
+  // optional background grid for reference
+  const viewW = (canvas.width / devicePixelRatio) / camera.zoom;
+  const viewH = (canvas.height / devicePixelRatio) / camera.zoom;
+  ctx.fillStyle = '#222';
+  ctx.fillRect(camera.x, camera.y, viewW, viewH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  for (let gx = Math.floor(camera.x/32)*32; gx < camera.x + viewW; gx += 32) {
+    ctx.beginPath(); ctx.moveTo(gx, camera.y); ctx.lineTo(gx, camera.y + viewH); ctx.stroke();
+  }
+  for (let gy = Math.floor(camera.y/32)*32; gy < camera.y + viewH; gy += 32) {
+    ctx.beginPath(); ctx.moveTo(camera.x, gy); ctx.lineTo(camera.x + viewW, gy); ctx.stroke();
+  }
+
+  // player
+  ctx.fillStyle = 'yellow';
+  ctx.fillRect(player.x - 8, player.y - 8, 16, 16);
+
+  // draw windows (in order)
+  for (const w of windows) w.draw();
+
+  ctx.restore();
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>
