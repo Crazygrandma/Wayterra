@@ -1,0 +1,24 @@
+# Compiled files
+target/
+debug/
+release/
+
+# Cargo build artifacts
+**/*.rs.bk
+
+# Rust/Cargo package files
+Cargo.lock
+/.cargo/
+
+# IDE/editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
