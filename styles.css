@@ -1,15 +1,33 @@
-/* reset body so canvas truly fills the window */
-html, body {
-  height: 100%;
+/* Make body take full screen */
+body, html {
   margin: 0;
   padding: 0;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  font-family: sans-serif;
+  background-color: #000; /* fallback dark background */
 }
 
-canvas {
-  position: fixed;   /* stays filling viewport even during scroll */
-  inset: 0;          /* top:0; right:0; bottom:0; left:0 */
+/* Canvas as full-screen background */
+#gameCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  display: block;    /* remove inline spacing */
-  background: #0b1020;
+  background-color: #111; /* dark background for canvas */
+  z-index: 0; /* Behind everything */
+}
+
+/* Title image on top */
+#titleImage {
+  position: absolute;
+  top: 20px;        /* adjust vertical position */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;       /* above the canvas */
+  max-width: 300px; /* smaller image */
+  width: 50%;       /* responsive */
+  height: auto;
 }

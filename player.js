@@ -1,11 +1,11 @@
 export class Player {
-    constructor(x, y, width = 40, height = 60) {
+    constructor(x, y, width = 20, height = 30) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
         this.velY = 0;
-        this.speed = 2;
+        this.speed = 4;
         this.gravity = 1;
         this.onGround = false;
         this.prevX = x;
@@ -19,7 +19,7 @@ export class Player {
 
         if (input['ArrowLeft']) this.x -= this.speed;
         if (input['ArrowRight']) this.x += this.speed;
-        if ((input[' '] || input['ArrowUp']) && this.onGround) this.velY = -10;
+        if ((input[' '] || input['ArrowUp']) && this.onGround) this.velY = -20;
 
         this.velY += this.gravity;
         this.y += this.velY;
@@ -45,7 +45,7 @@ export class Player {
     }
 
     render(ctx) {
-        ctx.fillStyle = 'blue';
+        ctx.fillStyle = 'white';
         ctx.fillRect(this.x, this.y, this.width, this.height);
         this.dirty = false; // clean after render
     }
