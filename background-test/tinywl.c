@@ -4,11 +4,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <drm_fourcc.h>
 #include <unistd.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
+#include <wlr/interfaces/wlr_buffer.h>
 #include <wlr/render/allocator.h>
+#include <wlr/render/gles2.h>
 #include <wlr/render/wlr_renderer.h>
+#include <wlr/types/wlr_buffer.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_data_device.h>
@@ -68,15 +72,23 @@ struct tinywl_server {
 	struct wlr_output_layout *output_layout;
 	struct wl_list outputs;
 	struct wl_listener new_output;
+	struct wlr_buffer *background_buffer;
 };
 
 struct tinywl_output {
 	struct wl_list link;
 	struct tinywl_server *server;
 	struct wlr_output *wlr_output;
+	struct wlr_scene_buffer *background_scene_buffer;
 	struct wl_listener frame;
 	struct wl_listener request_state;
 	struct wl_listener destroy;
+};
+
+struct gradient_buffer {
+	struct wlr_buffer base;
+	uint32_t *pixels;
+	size_t stride;
 };
 
 struct tinywl_toplevel {
@@ -584,14 +596,84 @@ static void server_cursor_frame(struct wl_listener *listener, void *data) {
 	wlr_seat_pointer_notify_frame(server->seat);
 }
 
+static bool gradient_buffer_begin_data_ptr_access(struct wlr_buffer *wlr_buffer,
+		uint32_t flags, void **data, uint32_t *format, size_t *stride) {
+	(void)flags;
+	struct gradient_buffer *buffer = wl_container_of(wlr_buffer, buffer, base);
+	*data = buffer->pixels;
+	*format = DRM_FORMAT_ARGB8888;
+	*stride = buffer->stride;
+	return true;
+}
+
+static void gradient_buffer_end_data_ptr_access(struct wlr_buffer *wlr_buffer) {
+	(void)wlr_buffer;
+}
+
+static void gradient_buffer_destroy(struct wlr_buffer *wlr_buffer) {
+	struct gradient_buffer *buffer = wl_container_of(wlr_buffer, buffer, base);
+	wlr_buffer_finish(&buffer->base);
+	free(buffer->pixels);
+	free(buffer);
+}
+
+static const struct wlr_buffer_impl gradient_buffer_impl = {
+	.destroy = gradient_buffer_destroy,
+	.begin_data_ptr_access = gradient_buffer_begin_data_ptr_access,
+	.end_data_ptr_access = gradient_buffer_end_data_ptr_access,
+};
+
+static bool create_background_buffer(struct tinywl_server *server) {
+	const int width = 512;
+	const int height = 512;
+	const size_t stride = width * sizeof(uint32_t);
+	struct gradient_buffer *buffer = calloc(1, sizeof(*buffer));
+	if (buffer == NULL) {
+		return false;
+	}
+
+	buffer->pixels = calloc(width * height, sizeof(uint32_t));
+	if (buffer->pixels == NULL) {
+		free(buffer);
+		return false;
+	}
+	buffer->stride = stride;
+
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			float tx = (float)x / (float)(width - 1);
+			float ty = (float)y / (float)(height - 1);
+
+			uint8_t r = (uint8_t)(18.0f + 70.0f * ty + 22.0f * tx);
+			uint8_t g = (uint8_t)(30.0f + 85.0f * ty + 18.0f * tx);
+			uint8_t b = (uint8_t)(72.0f + 95.0f * (1.0f - ty));
+
+			buffer->pixels[y * width + x] = (uint32_t)(0xFFu << 24) |
+				(uint32_t)(r << 16) |
+				(uint32_t)(g << 8) |
+				(uint32_t)b;
+		}
+	}
+
+	wlr_buffer_init(&buffer->base, &gradient_buffer_impl, width, height);
+	server->background_buffer = &buffer->base;
+	return true;
+}
 static void output_frame(struct wl_listener *listener, void *data) {
-	/* This function is called every time an output is ready to display a frame,
-	 * generally at the output's refresh rate (e.g. 60Hz). */
-	struct tinywl_output *output = wl_container_of(listener, output, frame);
+    	struct tinywl_output *output = wl_container_of(listener, output, frame);
 	struct wlr_scene *scene = output->server->scene;
 
 	struct wlr_scene_output *scene_output = wlr_scene_get_scene_output(
 		scene, output->wlr_output);
+
+	struct wlr_box output_box;
+	wlr_output_layout_get_box(output->server->output_layout,
+		output->wlr_output, &output_box);
+	wlr_scene_node_set_position(&output->background_scene_buffer->node,
+		output_box.x, output_box.y);
+	wlr_scene_buffer_set_dest_size(output->background_scene_buffer,
+		output_box.width, output_box.height);
+	wlr_scene_node_lower_to_bottom(&output->background_scene_buffer->node);
 
 	/* Render the scene if needed and commit the output */
 	wlr_scene_output_commit(scene_output, NULL);
@@ -599,7 +681,10 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 	wlr_scene_output_send_frame_done(scene_output, &now);
-}
+
+};
+
+
 
 static void output_request_state(struct wl_listener *listener, void *data) {
 	/* This function is called when the backend requests a new state for
@@ -612,6 +697,11 @@ static void output_request_state(struct wl_listener *listener, void *data) {
 
 static void output_destroy(struct wl_listener *listener, void *data) {
 	struct tinywl_output *output = wl_container_of(listener, output, destroy);
+	(void)data;
+
+	if (output->background_scene_buffer != NULL) {
+		wlr_scene_node_destroy(&output->background_scene_buffer->node);
+	}
 
 	wl_list_remove(&output->frame.link);
 	wl_list_remove(&output->request_state.link);
@@ -681,7 +771,23 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	struct wlr_output_layout_output *l_output = wlr_output_layout_add_auto(server->output_layout,
 		wlr_output);
 	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr_output);
-	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
+	if (l_output != NULL && scene_output != NULL) {
+		wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
+	}
+
+	output->background_scene_buffer = wlr_scene_buffer_create(
+		&server->scene->tree, server->background_buffer);
+	if (output->background_scene_buffer != NULL) {
+		int width, height;
+		wlr_output_effective_resolution(wlr_output, &width, &height);
+		wlr_scene_buffer_set_dest_size(output->background_scene_buffer,
+			width, height);
+		if (l_output != NULL) {
+			wlr_scene_node_set_position(&output->background_scene_buffer->node,
+				l_output->x, l_output->y);
+		}
+		wlr_scene_node_lower_to_bottom(&output->background_scene_buffer->node);
+	}
 }
 
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
@@ -955,6 +1061,14 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
+	if (!create_background_buffer(&server)) {
+		wlr_log(WLR_ERROR, "failed to create background buffer");
+		wlr_allocator_destroy(server.allocator);
+		wlr_renderer_destroy(server.renderer);
+		wlr_backend_destroy(server.backend);
+		wl_display_destroy(server.wl_display);
+		return 1;
+	}
 	/* This creates some hands-off wlroots interfaces. The compositor is
 	 * necessary for clients to allocate surfaces, the subcompositor allows to
 	 * assign the role of subsurfaces to surfaces and the data device manager
@@ -1105,6 +1219,7 @@ int main(int argc, char *argv[]) {
 	wl_list_remove(&server.new_output.link);
 
 	wlr_scene_node_destroy(&server.scene->tree.node);
+	wlr_buffer_drop(server.background_buffer);
 	wlr_xcursor_manager_destroy(server.cursor_mgr);
 	wlr_cursor_destroy(server.cursor);
 	wlr_allocator_destroy(server.allocator);

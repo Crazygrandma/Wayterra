@@ -162,7 +162,7 @@ static void keyboard_handle_modifiers(
 
 /////////
 
-static void spawn_terminal(const char *cmd) {
+static void spawn_client(const char *cmd) {
 	pid_t pid = fork();
 	if (pid == 0) {
 		/* child */
@@ -259,7 +259,11 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		break;
 
 	case XKB_KEY_Return:
-		spawn_terminal("alacritty");   // change to your terminal
+		spawn_client("alacritty");   // change to your terminal
+		break;
+	case XKB_KEY_b:
+    case XKB_KEY_B:
+		spawn_client("firefox");   // change to your terminal
 		break;
 	case XKB_KEY_Tab:
 		server->movement_mode_enabled = !server->movement_mode_enabled;
