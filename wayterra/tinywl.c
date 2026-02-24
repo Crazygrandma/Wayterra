@@ -8,95 +8,226 @@
 #include <unistd.h>
 #include <xkbcommon/xkbcommon.h>
 #include <drm_fourcc.h>
+#include <GLES2/gl2.h>
 
 #include <config.h>
 #include <server.h>
-#include "tinywl_buffer.h"
 #include "tinywl_input.h"
 #include "tinywl_output.h"
 #include "tinywl_xdg.h"
-#include <wlr/interfaces/wlr_buffer.h>
+#include <wlr/render/gles2.h>
+#include <wlr/render/pass.h>
 
-static struct tinywl_solid_buffer *tinywl_solid_buffer_from_wlr(
-		struct wlr_buffer *wlr_buffer) {
-	struct tinywl_solid_buffer *buffer =
-		wl_container_of(wlr_buffer, buffer, base);
-	return buffer;
+static const char *TINYWL_BG_VERTEX_SHADER =
+	"attribute vec2 a_pos;\n"
+	"varying vec2 v_uv;\n"
+	"void main(void) {\n"
+	"	v_uv = 0.5 * (a_pos + vec2(1.0, 1.0));\n"
+	"	gl_Position = vec4(a_pos, 0.0, 1.0);\n"
+	"}\n";
+
+static const char *TINYWL_BG_FRAGMENT_SHADER =
+	"precision mediump float;\n"
+	"varying vec2 v_uv;\n"
+	"uniform float u_time;\n"
+	"void main(void) {\n"
+	"	float wave = 0.5 + 0.5 * sin(u_time + v_uv.x * 6.28318);\n"
+	"	vec3 sky = vec3(0.06, 0.18, 0.35);\n"
+	"	vec3 grass = vec3(0.08, 1.0, 0.18);\n"
+	"	vec3 color = mix(sky, grass, v_uv.y);\n"
+	"	color += 0.08 * wave;\n"
+	"	gl_FragColor = vec4(color, 1.0);\n"
+	"}\n";
+
+static GLuint tinywl_compile_shader(GLenum type, const char *source) {
+	GLuint shader = glCreateShader(type);
+	glShaderSource(shader, 1, &source, NULL);
+	glCompileShader(shader);
+
+	GLint compiled = GL_FALSE;
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+	if (compiled == GL_TRUE) {
+		return shader;
+	}
+
+	GLchar log[1024];
+	GLsizei log_len = 0;
+	glGetShaderInfoLog(shader, sizeof(log), &log_len, log);
+	wlr_log(WLR_ERROR, "shader compilation failed: %.*s", (int)log_len, log);
+	glDeleteShader(shader);
+	return 0;
 }
 
-static void tinywl_solid_buffer_destroy(struct wlr_buffer *wlr_buffer) {
-	struct tinywl_solid_buffer *buffer = tinywl_solid_buffer_from_wlr(wlr_buffer);
-	wlr_buffer_finish(wlr_buffer);
-	free(buffer->data);
-	free(buffer);
-}
+static bool tinywl_prepare_background_gl(struct tinywl_output *output) {
+	if (output->background_gl_ready) {
+		return true;
+	}
 
-static bool tinywl_solid_buffer_begin_data_ptr_access(struct wlr_buffer *wlr_buffer,
-		uint32_t flags, void **data, uint32_t *format, size_t *stride) {
-	struct tinywl_solid_buffer *buffer = tinywl_solid_buffer_from_wlr(wlr_buffer);
-	if (flags & WLR_BUFFER_DATA_PTR_ACCESS_WRITE) {
+	GLuint vertex_shader = tinywl_compile_shader(GL_VERTEX_SHADER,
+		TINYWL_BG_VERTEX_SHADER);
+	if (vertex_shader == 0) {
 		return false;
 	}
-	*data = buffer->data;
-	*format = buffer->format;
-	*stride = buffer->stride;
+
+	GLuint fragment_shader = tinywl_compile_shader(GL_FRAGMENT_SHADER,
+		TINYWL_BG_FRAGMENT_SHADER);
+	if (fragment_shader == 0) {
+		glDeleteShader(vertex_shader);
+		return false;
+	}
+
+	GLuint program = glCreateProgram();
+	glAttachShader(program, vertex_shader);
+	glAttachShader(program, fragment_shader);
+	glBindAttribLocation(program, 0, "a_pos");
+	glLinkProgram(program);
+
+	glDeleteShader(vertex_shader);
+	glDeleteShader(fragment_shader);
+
+	GLint linked = GL_FALSE;
+	glGetProgramiv(program, GL_LINK_STATUS, &linked);
+	if (linked != GL_TRUE) {
+		GLchar log[1024];
+		GLsizei log_len = 0;
+		glGetProgramInfoLog(program, sizeof(log), &log_len, log);
+		wlr_log(WLR_ERROR, "program link failed: %.*s", (int)log_len, log);
+		glDeleteProgram(program);
+		return false;
+	}
+
+	const GLfloat triangle[] = {
+		0.0f, 0.3f,
+		-0.3f, -0.3f,
+		0.3f, -0.3f,
+	};
+
+	GLuint vbo = 0;
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle), triangle, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	output->background_program = program;
+	output->background_vbo = vbo;
+	output->background_pos_loc = 0;
+	output->background_time_loc = glGetUniformLocation(program, "u_time");
+	output->background_gl_ready = true;
 	return true;
 }
 
-static void tinywl_solid_buffer_end_data_ptr_access(struct wlr_buffer *wlr_buffer) {
-	(void)wlr_buffer;
-}
-
-static const struct wlr_buffer_impl tinywl_solid_buffer_impl = {
-	.destroy = tinywl_solid_buffer_destroy,
-	.begin_data_ptr_access = tinywl_solid_buffer_begin_data_ptr_access,
-	.end_data_ptr_access = tinywl_solid_buffer_end_data_ptr_access,
-};
-
-#define GAME_FRAME_WIDTH 1920
-#define GAME_FRAME_HEIGHT 1080
-
-static void tinywl_fill_platformer_frame(struct tinywl_solid_buffer *buffer) {
-	const uint32_t sky_color = 0x0087CEEB;
-	const uint32_t grass_color = 0x0032CD32;
-	const uint32_t ground_color = 0x008B4513;
-
-	uint32_t *pixels = (uint32_t *)buffer->data;
-	int sky_end = GAME_FRAME_HEIGHT / 3;
-	int grass_end = (GAME_FRAME_HEIGHT * 2) / 3;
-
-	for (int y = 0; y < GAME_FRAME_HEIGHT; y++) {
-		uint32_t color = ground_color;
-		if (y < sky_end) {
-			color = sky_color;
-		} else if (y < grass_end) {
-			color = grass_color;
-		}
-
-		for (int x = 0; x < GAME_FRAME_WIDTH; x++) {
-			pixels[y * GAME_FRAME_WIDTH + x] = color;
-		}
+static bool tinywl_prepare_background_swapchain(struct tinywl_output *output,
+		int width, int height) {
+	if (width <= 0 || height <= 0) {
+		return false;
 	}
+	if (output->background_swapchain != NULL &&
+			output->background_width == width &&
+			output->background_height == height) {
+		return true;
+	}
+
+	if (output->background_swapchain != NULL) {
+		wlr_swapchain_destroy(output->background_swapchain);
+		output->background_swapchain = NULL;
+	}
+
+	const struct wlr_drm_format_set *formats = wlr_output_get_primary_formats(
+		output->wlr_output, output->server->renderer->render_buffer_caps);
+
+	struct wlr_drm_format format = {0};
+	if (formats == NULL) {
+		static const uint64_t modifiers[] = {DRM_FORMAT_MOD_INVALID};
+		format.format = DRM_FORMAT_XRGB8888;
+		format.len = 1;
+		format.modifiers = (uint64_t *)modifiers;
+	} else if (formats->len > 0) {
+		const struct wlr_drm_format *picked =
+			wlr_drm_format_set_get(formats, DRM_FORMAT_XRGB8888);
+		if (picked == NULL) {
+			picked = wlr_drm_format_set_get(formats, DRM_FORMAT_ARGB8888);
+		}
+		if (picked == NULL) {
+			picked = &formats->formats[0];
+		}
+		format = *picked;
+	} else {
+		wlr_log(WLR_ERROR, "output doesn't expose any primary buffer formats");
+		return false;
+	}
+
+	output->background_swapchain = wlr_swapchain_create(output->server->allocator,
+		width, height, &format);
+	if (output->background_swapchain == NULL) {
+		wlr_log(WLR_ERROR, "failed to create background swapchain");
+		return false;
+	}
+
+	output->background_width = width;
+	output->background_height = height;
+	return true;
 }
 
-static struct wlr_buffer *tinywl_create_game_frame_buffer(void) {
-	struct tinywl_solid_buffer *buffer = calloc(1, sizeof(*buffer));
+static bool tinywl_render_background_gpu(struct tinywl_output *output,
+		int width, int height) {
+	if (!wlr_renderer_is_gles2(output->server->renderer)) {
+		return false;
+	}
+	if (!tinywl_prepare_background_swapchain(output, width, height)) {
+		return false;
+	}
+
+	struct wlr_buffer *buffer = wlr_swapchain_acquire(output->background_swapchain);
 	if (buffer == NULL) {
-		return NULL;
+		wlr_log(WLR_ERROR, "failed to acquire swapchain buffer");
+		return false;
 	}
 
-	buffer->format = DRM_FORMAT_XRGB8888;
-	buffer->stride = GAME_FRAME_WIDTH * 4;
-	buffer->data = calloc(GAME_FRAME_HEIGHT, buffer->stride);
-	if (buffer->data == NULL) {
-		free(buffer);
-		return NULL;
+	struct wlr_buffer_pass_options pass_options = {0};
+	struct wlr_render_pass *render_pass = wlr_renderer_begin_buffer_pass(
+		output->server->renderer, buffer, &pass_options);
+	if (render_pass == NULL) {
+		wlr_buffer_unlock(buffer);
+		wlr_log(WLR_ERROR, "failed to begin buffer render pass");
+		return false;
 	}
 
-	tinywl_fill_platformer_frame(buffer);
-	wlr_buffer_init(&buffer->base, &tinywl_solid_buffer_impl,
-		GAME_FRAME_WIDTH, GAME_FRAME_HEIGHT);
-	return &buffer->base;
+	if (!tinywl_prepare_background_gl(output)) {
+		wlr_render_pass_submit(render_pass);
+		wlr_buffer_unlock(buffer);
+		return false;
+	}
+
+	GLuint fbo = wlr_gles2_renderer_get_buffer_fbo(output->server->renderer, buffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glViewport(0, 0, width, height);
+	glDisable(GL_BLEND);
+	glUseProgram(output->background_program);
+
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	float seconds = (float)now.tv_sec + (float)now.tv_nsec / 1000000000.0f;
+	glUniform1f(output->background_time_loc, seconds);
+
+	glBindBuffer(GL_ARRAY_BUFFER, output->background_vbo);
+	glEnableVertexAttribArray((GLuint)output->background_pos_loc);
+	glVertexAttribPointer((GLuint)output->background_pos_loc, 2, GL_FLOAT,
+		GL_FALSE, 2 * sizeof(float), (const void *)0);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glDisableVertexAttribArray((GLuint)output->background_pos_loc);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glUseProgram(0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	if (!wlr_render_pass_submit(render_pass)) {
+		wlr_log(WLR_ERROR, "failed to submit background render pass");
+		wlr_buffer_unlock(buffer);
+		return false;
+	}
+
+	wlr_scene_buffer_set_buffer(output->blue_background, buffer);
+	wlr_buffer_unlock(buffer);
+	return true;
 }
 
 static void focus_toplevel(struct tinywl_toplevel *toplevel) {
@@ -711,6 +842,7 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	wlr_scene_buffer_set_dest_size(output->blue_background,
 		output_box.width, output_box.height);
 	wlr_scene_node_lower_to_bottom(&output->blue_background->node);
+	tinywl_render_background_gpu(output, output_box.width, output_box.height);
 
 	/* Render the scene if needed and commit the output */
 	wlr_scene_output_commit(scene_output, NULL);
@@ -731,6 +863,10 @@ static void output_request_state(struct wl_listener *listener, void *data) {
 
 static void output_destroy(struct wl_listener *listener, void *data) {
 	struct tinywl_output *output = wl_container_of(listener, output, destroy);
+
+	if (output->background_swapchain != NULL) {
+		wlr_swapchain_destroy(output->background_swapchain);
+	}
 
 	wlr_scene_node_destroy(&output->blue_background->node);
 	wl_list_remove(&output->frame.link);
@@ -775,14 +911,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	output->wlr_output = wlr_output;
 	output->server = server;
 
-	struct wlr_buffer *blue_buffer = tinywl_create_game_frame_buffer();
-	if (blue_buffer == NULL) {
-		free(output);
-		wlr_log(WLR_ERROR, "failed to create blue demo buffer");
-		return;
-	}
-	output->blue_background = wlr_scene_buffer_create(&server->scene->tree, blue_buffer);
-	wlr_buffer_drop(blue_buffer);
+	output->blue_background = wlr_scene_buffer_create(&server->scene->tree, NULL);
 	if (output->blue_background == NULL) {
 		free(output);
 		wlr_log(WLR_ERROR, "failed to create blue scene buffer");

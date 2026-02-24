@@ -8,6 +8,7 @@ wlroots = dependency('wlroots-0.20', required: true)
 wayland_server = dependency('wayland-server', required: true)
 xkbcommon = dependency('xkbcommon', required: true)
 libdrm = dependency('libdrm', required: true)
+glesv2 = dependency('glesv2', required: true)
 
 executable(
   'wayterra',
@@ -18,6 +19,6 @@ executable(
   'tinywl_input.h',
   'tinywl_output.h',
   'tinywl_xdg.h',
-  dependencies: [wlroots, wayland_server, xkbcommon, libdrm],
+  dependencies: [wlroots, wayland_server, xkbcommon, libdrm, glesv2],
   install: true,
 )
