@@ -23,3 +23,6 @@ compile_commands.json
 *.swp
 *.swo
 .DS_Store
+
+# Clangd caches
+.cache/

@@ -1,4 +1,4 @@
-project('tinywl', 'c',
+project('wayterra', 'c',
   default_options: ['warning_level=3']
 )
 
@@ -12,13 +12,9 @@ glesv2 = dependency('glesv2', required: true)
 
 executable(
   'wayterra',
-  'tinywl.c',
-  'config.h',
-  'server.h',
-  'tinywl_buffer.h',
-  'tinywl_input.h',
-  'tinywl_output.h',
-  'tinywl_xdg.h',
+  'wayterra.c',
+  'util.h',
+  'util.c',
   dependencies: [wlroots, wayland_server, xkbcommon, libdrm, glesv2],
   install: true,
 )
