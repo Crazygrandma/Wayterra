@@ -3,21 +3,47 @@
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
 #include <wlr/render/allocator.h>
-
+#include <wlr/types/wlr_output.h>
 #include "util.h"
 
 #include <wlr/util/log.h>
+
+
+// Function delarations
+static void setup(void);
+static void run(void);
+static void cleanup(void);
+static void handle_new_output(struct wl_listener* listener, void *data);
 
 static struct wl_display *wayterra_display;
 static struct wl_event_loop *event_loop;
 static struct wlr_session *session;
 static struct wlr_backend *backend;
-// Function delarations
-static void setup(void);
-static void run(void);
-static void cleanup(void);
+static struct wlr_allocator *alloc;
+static struct wlr_renderer *wayterra_renderer;
+static struct wl_listener new_output_listener = {.notify = handle_new_output};
 
+static void handle_new_output(struct wl_listener *listener, void *data){
 
+    struct wlr_output *output = data;
+
+    if(!wlr_output_init_render(output, alloc, wayterra_renderer)){
+        wlr_log(WLR_ERROR, "Failed to init render for output %s", output->name);
+        return;
+    }
+
+    struct wlr_output_state state;
+    wlr_output_state_init(&state);
+    wlr_output_state_set_enabled(&state, true);
+    
+	wlr_output_state_set_mode(&state, wlr_output_preferred_mode(output));
+	
+    wlr_output_state_set_enabled(&state, 1);
+	
+    wlr_output_commit_state(output, &state);
+	wlr_output_state_finish(&state);
+
+}
 
 void setup(void){
 	wlr_log_init(WLR_DEBUG, NULL);
@@ -35,6 +61,23 @@ void setup(void){
 	if (!(backend = wlr_backend_autocreate(event_loop, &session))){
 		die("couldn't create backend");
     }
+
+	/* Autocreates a renderer, either Pixman, GLES2 or Vulkan for us. The user
+	 * can also specify a renderer using the WLR_RENDERER env var.
+	 * The renderer is responsible for defining the various pixel formats it
+	 * supports for shared memory, this configures that for clients. */
+	if (!(wayterra_renderer = wlr_renderer_autocreate(backend)))
+		die("couldn't create renderer");
+	
+    /* Autocreates an allocator for us.
+	 * The allocator is the bridge between the renderer and the backend. It
+	 * handles the buffer creation, allowing wlroots to render onto the
+	 * screen */
+	if (!(alloc = wlr_allocator_autocreate(backend, wayterra_renderer)))
+		die("couldn't create allocator");
+	
+
+    wl_signal_add(&backend->events.new_output, &new_output_listener);
 }
 
 void run(void){
@@ -44,6 +87,7 @@ void run(void){
 	if (!socket)
 		die("startup: display_add_socket_auto");
 	setenv("WAYLAND_DISPLAY", socket, 1);
+
 	/* Start the backend. This will enumerate outputs and inputs, become the DRM
 	 * master, etc */
 	if (!wlr_backend_start(backend))
@@ -57,6 +101,7 @@ void run(void){
 }
 
 void cleanup(void){
+	wl_list_remove(&new_output_listener.link);
 	/* If it's not destroyed manually, it will cause a use-after-free of wlr_seat.
 	 * Destroy it until it's fixed on the wlroots side */
 	wlr_backend_destroy(backend);
