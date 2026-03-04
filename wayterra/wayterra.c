@@ -2,6 +2,7 @@
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
+#include <wlr/types/wlr_scene.h>
 #include <wlr/render/allocator.h>
 #include <wlr/types/wlr_output.h>
 #include "util.h"
@@ -22,6 +23,7 @@ static struct wlr_backend *backend;
 static struct wlr_allocator *alloc;
 static struct wlr_renderer *wayterra_renderer;
 static struct wl_listener new_output_listener = {.notify = handle_new_output};
+static struct wlr_scene *scene;
 
 static void handle_new_output(struct wl_listener *listener, void *data){
 
@@ -54,25 +56,15 @@ void setup(void){
     }
 	event_loop = wl_display_get_event_loop(wayterra_display);
     
-	/* The backend is a wlroots feature which abstracts the underlying input and
-	 * output hardware. The autocreate option will choose the most suitable
-	 * backend based on the current environment, such as opening an X11 window
-	 * if an X11 server is running. */
 	if (!(backend = wlr_backend_autocreate(event_loop, &session))){
 		die("couldn't create backend");
     }
 
-	/* Autocreates a renderer, either Pixman, GLES2 or Vulkan for us. The user
-	 * can also specify a renderer using the WLR_RENDERER env var.
-	 * The renderer is responsible for defining the various pixel formats it
-	 * supports for shared memory, this configures that for clients. */
+	scene = wlr_scene_create();
+
 	if (!(wayterra_renderer = wlr_renderer_autocreate(backend)))
 		die("couldn't create renderer");
-	
-    /* Autocreates an allocator for us.
-	 * The allocator is the bridge between the renderer and the backend. It
-	 * handles the buffer creation, allowing wlroots to render onto the
-	 * screen */
+
 	if (!(alloc = wlr_allocator_autocreate(backend, wayterra_renderer)))
 		die("couldn't create allocator");
 	
@@ -106,6 +98,9 @@ void cleanup(void){
 	 * Destroy it until it's fixed on the wlroots side */
 	wlr_backend_destroy(backend);
     wl_display_destroy(wayterra_display);
+	
+
+    wlr_scene_node_destroy(&scene->tree.node);
 }
 
 int main(int argc, char *argv[])
