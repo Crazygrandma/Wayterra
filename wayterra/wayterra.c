@@ -3,34 +3,47 @@
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
 #include <wlr/types/wlr_scene.h>
+#include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_pointer.h>
+#include <wlr/types/wlr_scene.h>
+#include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_subcompositor.h>
 #include <wlr/render/allocator.h>
 #include <wlr/types/wlr_output.h>
 #include "util.h"
 
 #include <wlr/util/log.h>
 
+struct wayterra_server{
+    struct wl_display *wl_display;
+    struct wlr_session *session;
+    struct wlr_backend *backend;
+    struct wlr_allocator *allocator;
+    struct wlr_renderer *renderer;
+    struct wlr_scene *scene;
+	struct wlr_scene_output_layout *scene_layout;
+	struct wlr_output_layout *output_layout;
 
+    struct wl_list outputs;
+	struct wl_listener new_output;
+};
 // Function delarations
 static void setup(void);
-static void run(void);
+static void run(void); 
 static void cleanup(void);
 static void handle_new_output(struct wl_listener* listener, void *data);
 
-static struct wl_display *wayterra_display;
-static struct wl_event_loop *event_loop;
-static struct wlr_session *session;
-static struct wlr_backend *backend;
-static struct wlr_allocator *alloc;
-static struct wlr_renderer *wayterra_renderer;
-static struct wl_listener new_output_listener = {.notify = handle_new_output};
-static struct wlr_scene *scene;
+
 
 static void handle_new_output(struct wl_listener *listener, void *data){
 
-    struct wlr_output *output = data;
+	struct wayterra_server *server =
+		wl_container_of(listener, server, new_output);
+	struct wlr_output *wlr_output = data;
 
-    if(!wlr_output_init_render(output, alloc, wayterra_renderer)){
-        wlr_log(WLR_ERROR, "Failed to init render for output %s", output->name);
+    if(!wlr_output_init_render(wlr_output, server->allocator, server->renderer)){
+        wlr_log(WLR_ERROR, "Failed to init render for output %s", wlr_output->name);
         return;
     }
 
@@ -38,43 +51,69 @@ static void handle_new_output(struct wl_listener *listener, void *data){
     wlr_output_state_init(&state);
     wlr_output_state_set_enabled(&state, true);
     
-	wlr_output_state_set_mode(&state, wlr_output_preferred_mode(output));
+	struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
+	if (mode != NULL) {
+		wlr_output_state_set_mode(&state, mode);
+	}
 	
-    wlr_output_state_set_enabled(&state, 1);
 	
-    wlr_output_commit_state(output, &state);
+	/* Atomically applies the new output state. */
+	wlr_output_commit_state(wlr_output, &state);
 	wlr_output_state_finish(&state);
 
 }
 
 void setup(void){
 	wlr_log_init(WLR_DEBUG, NULL);
-    
-    wayterra_display = wl_display_create();
-    if (!wayterra_display) {
+
+    struct wayterra_server server = {0};
+    server.wl_display = wl_display_create();
+    if (!server.wl_display) {
         die("Could not create display");
     }
-	event_loop = wl_display_get_event_loop(wayterra_display);
     
-	if (!(backend = wlr_backend_autocreate(event_loop, &session))){
+	server.backend = wlr_backend_autocreate(wl_display_get_event_loop(server.wl_display), NULL);
+	if (server.backend == NULL) {
 		die("couldn't create backend");
     }
 
-	scene = wlr_scene_create();
 
-	if (!(wayterra_renderer = wlr_renderer_autocreate(backend)))
+	server.renderer = wlr_renderer_autocreate(server.backend);
+	if (server.renderer == NULL) {
 		die("couldn't create renderer");
+	}
 
-	if (!(alloc = wlr_allocator_autocreate(backend, wayterra_renderer)))
+	wlr_renderer_init_wl_display(server.renderer, server.wl_display);
+
+	server.allocator = wlr_allocator_autocreate(server.backend,
+		server.renderer);
+	if (server.allocator == NULL) {
 		die("couldn't create allocator");
+	}
 	
+	server.output_layout = wlr_output_layout_create(server.wl_display);
+    
+	/* Configure a listener to be notified when new outputs are available on the
+	 * backend. */
+	wl_list_init(&server.outputs);
+	server.new_output.notify = handle_new_output;
+	wl_signal_add(&server.backend->events.new_output, &server.new_output);
 
-    wl_signal_add(&backend->events.new_output, &new_output_listener);
+
+	/* Create a scene graph. This is a wlroots abstraction that handles all
+	 * rendering and damage tracking. All the compositor author needs to do
+	 * is add things that should be rendered to the scene graph at the proper
+	 * positions and then call wlr_scene_output_commit() to render a frame if
+	 * necessary.
+	 */
+	server.scene = wlr_scene_create();
+	server.scene_layout = wlr_scene_attach_output_layout(server.scene, server.output_layout);
 }
 
 void run(void){
-	/* Add a Unix socket to the Wayland display. */
-	const char *socket = wl_display_add_socket_auto(wayterra_display);
+	/* Add a Unix socket to the Wayland display.*/
+    struct wayterra_server server;
+	const char *socket = wl_display_add_socket_auto(server.wl_display);
     wlr_log(WLR_INFO, "WAYLAND_DISPLAY=%s", socket);
 	if (!socket)
 		die("startup: display_add_socket_auto");
@@ -82,25 +121,33 @@ void run(void){
 
 	/* Start the backend. This will enumerate outputs and inputs, become the DRM
 	 * master, etc */
-	if (!wlr_backend_start(backend))
+	if (!wlr_backend_start(server.backend))
 		die("startup: backend_start");
 
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
 	 * loop configuration to listen to libinput events, DRM events, generate
 	 * frame events at the refresh rate, and so on. */
-	wl_display_run(wayterra_display);
+	wl_display_run(server.wl_display);
 }
 
 void cleanup(void){
-	wl_list_remove(&new_output_listener.link);
-	/* If it's not destroyed manually, it will cause a use-after-free of wlr_seat.
-	 * Destroy it until it's fixed on the wlroots side */
-	wlr_backend_destroy(backend);
-    wl_display_destroy(wayterra_display);
+    struct wayterra_server server;
 	
 
-    wlr_scene_node_destroy(&scene->tree.node);
+    /* Once wl_display_run returns, we destroy all clients then shut down the
+	 * server. */
+	wl_display_destroy_clients(server.wl_display);
+
+    
+
+    wlr_scene_node_destroy(&server.scene->tree.node);
+    /* If it's not destroyed manually, it will cause a use-after-free of wlr_seat.
+	 * Destroy it until it's fixed on the wlroots side */
+	wlr_backend_destroy(server.backend);
+    wl_display_destroy(server.wl_display);
+	
+
 }
 
 int main(int argc, char *argv[])
