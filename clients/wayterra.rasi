@@ -1,0 +1,169 @@
+
+/** Default settings, every widget inherits from this. */
+* {
+    /** Default background color is transparent. */
+    background-color: transparent;
+    /** Default text is white */
+    text-color: #e0e6ff;
+    font: "Andy Bold 12";
+}
+/**
+ * Entry box on top. 
+ */
+entry {
+    /** top  and bottom border */
+    border: 0px;
+    /** Background is transparent, inputbar provides the frame */
+    background-color: transparent;
+    /** room for text inside input bar */
+    padding:       6px 10px;
+    /** when no text is set, show 'Type to filter' */
+    placeholder:       "";
+    /** this text is dark grey */
+    placeholder-color: darkgrey;
+    /** inherit font setting from parent */
+    font: inherit;
+    cursor: text;
+}
+
+/**
+ * Input bar
+ */
+inputbar {
+    /** no spacing between widgets */
+    spacing: 0;
+    /** entry only (no mode switcher) */
+    children: [ entry ];
+    /** use monospace font. */
+    font:   "Andy Bold";
+    /** terraria-like bar */
+    background-color: #1a2f5c;
+    border: 2px;
+    border-color: #4667b6;
+    border-radius: 6px;
+    padding: 4px 6px;
+    /** centered bar */
+    expand: false;
+    width: 60%;
+    margin: 0px;
+}
+
+
+/**
+ * Buttons in mode switcher.
+ */
+button {
+    background-color: grey;
+    border-color: darkgrey;
+    /** inherit font setting from parent */
+    font: inherit;
+    cursor: pointer;
+}
+
+/**
+ * Selected buttons in mode switcher.
+ */
+button selected {
+    background-color: lightgrey;
+    text-color:       black;
+}
+
+/**
+ * Small icon in inputbar
+ */
+icon-keyboard {
+    /** give it a 2 pixel border, except on the right side. */
+    border:        2px 0px 2px 2px;
+    /** with a radius on the left two corners. */ 
+    border-radius: 4px 0px 0px 4px;
+    /** add matching border. */
+    border-color: darkgrey;
+    /** match background. */
+    background-color: grey;
+    /** move icon away from right border. */
+    padding: 0px 10px 0px 10px;
+    /** Only use required space. */
+    expand: false;
+    /** icon is around 1.2 font width */
+    size: 1.2em;
+    /** Icon name, we use symbolic name here */
+    filename: "keyboard";
+}
+
+/**
+ * Main window widget
+ */
+window {
+
+    /** Fixed window size to match background image */
+    width:            900;
+    height:           420px;
+
+    /** Terraria inventory background image. */
+    background-image: url("/home/moviemakerhd/.config/rofi/rofiInventory.png", height);
+    /** Small one 1 font width border on inside of window. */
+    padding:           1em;
+
+    /** border */
+    border-color: black;
+    border:  0em 0.2em 0.2em;
+}
+
+/**
+ * Main container in the window.
+ */
+mainbox { 
+    /** spacing between widgets */
+    spacing: 1em;
+}
+
+/**
+ * listview that shows entries.
+ */
+listview {
+    lines: 5;
+    columns: 10;
+    spacing: 1em;
+    fixed-columns: true;
+    fixed-height: true;
+}
+/**
+ * entry in listview.
+ */
+element {
+    /** clients are packed vertically. */
+    orientation:      vertical;
+    border:           2px;
+    /** with 4px radius on corners. */
+    border-radius:    4px ;
+    border-color:     darkblue;
+    background-color: transparent;
+    /** 4 px padding on the inside of border */
+    cursor: pointer;
+    width: 80px;
+    height: 80px;
+    padding:          4px;
+}
+
+/** selected element */
+element selected {
+    /** highlighted colors */
+    background-color: lightblue;
+    text-color:       black;
+}
+
+/** Entry icon */
+element-icon {
+    /** change size to 128 pixels. */
+    size: 32;
+    cursor: inherit;
+}
+
+/** Entry text */
+element-text {
+    /* align font in (horizontally) center */
+    horizontal-align: 0.5;
+    cursor: inherit;
+    /** hide app name below the icon */
+    enabled: false;
+}
