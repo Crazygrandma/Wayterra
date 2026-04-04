@@ -15,6 +15,9 @@ inc = include_directories('include','third_party')
 executable(
   'wayterra',
   'wayterra.c',
+  'src/error.c',
+  'src/file_utils.c',
+  'src/gl_utils.c',
   dependencies: [wlroots, wayland_server, xkbcommon, libdrm, glesv2],
   include_directories: inc,
 )

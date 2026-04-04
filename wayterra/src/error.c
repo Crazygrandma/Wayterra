@@ -1,5 +1,9 @@
 #include "error.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 void
 die(const char *fmt, ...) {
 	va_list ap;

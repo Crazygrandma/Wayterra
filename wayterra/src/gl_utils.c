@@ -1,3 +1,4 @@
+#define STB_IMAGE_IMPLEMENTATION
 #include "gl_utils.h"
 
 GLuint load_texture(const char *path) {
