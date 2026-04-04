@@ -10,11 +10,11 @@ xkbcommon = dependency('xkbcommon', required: true)
 libdrm = dependency('libdrm', required: true)
 glesv2 = dependency('glesv2', required: true)
 
+inc = include_directories('include','third_party')
+
 executable(
   'wayterra',
   'wayterra.c',
-  'util.h',
-  'util.c',
   dependencies: [wlroots, wayland_server, xkbcommon, libdrm, glesv2],
-  install: true,
+  include_directories: inc,
 )
