@@ -11,15 +11,21 @@ char* load_file(const char* path) {
     long size = ftell(f);
     rewind(f);
 
-    char* buffer = (char*)malloc(size + 1);
+    char* buffer = malloc(size + 1);
     if (!buffer) {
         fclose(f);
         return NULL;
     }
 
-    
-    buffer[size] = '\0';
+    size_t read = fread(buffer, 1, size, f);
+    if (read != size) {
+        printf("Failed to read full file: %s\n", path);
+        free(buffer);
+        fclose(f);
+        return NULL;
+    }
 
+    buffer[size] = '\0'; // null-terminate
     fclose(f);
     return buffer;
 }

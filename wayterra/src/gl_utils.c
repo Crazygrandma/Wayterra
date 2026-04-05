@@ -52,3 +52,4 @@ GLuint compile_shader(GLenum type, const char* src) {
     }
     return shader;
 }
+
