@@ -5,10 +5,10 @@ varying vec2 vUV;
 uniform float windowWidth;
 uniform float windowHeight;
 uniform float numTiles;
-
+uniform float uOffset;
 uniform sampler2D tileMap;
 uniform vec2 tileMapSize;
-
+// TODO add toggle to switch from tile renderer to sprite renderer
 
 uniform sampler2D atlasTexture;
 
@@ -47,6 +47,7 @@ vec3 getTileColor(vec3 tileData, vec2 tileCoord, float numTiles, vec2 tileUVs) {
 void main() {
     // Flip Y so tilemap matches screen
     vec2 uv = vUV;
+    uv.x += uOffset;
 
     // Keep tiles square
     uv.x *= getAspect();
@@ -60,7 +61,7 @@ void main() {
     vec3 tileData = texture2D(tileMap, mapUV).rgb;
 
     // Determine final color
-    // vec3 color = vec3(1.0);
+    // vec3 color = vec3(tileUVs, 0.0);
     vec3 color = getTileColor(tileData, tileCoord, numTiles, tileUVs);
     // vec3 color = texture2D(atlasTexture,uv).rgb;
     gl_FragColor = vec4(color, 1.0);
