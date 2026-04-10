@@ -1,5 +1,7 @@
 precision mediump float;
 
+uniform int uRenderMode;
+
 varying vec2 vUV;
 
 uniform float windowWidth;
@@ -8,9 +10,9 @@ uniform float numTiles;
 uniform float uOffset;
 uniform sampler2D tileMap;
 uniform vec2 tileMapSize;
-// TODO add toggle to switch from tile renderer to sprite renderer
-
 uniform sampler2D atlasTexture;
+uniform sampler2D playerTexture;
+
 
 
 float getAspect() {
@@ -45,24 +47,27 @@ vec3 getTileColor(vec3 tileData, vec2 tileCoord, float numTiles, vec2 tileUVs) {
 }
 
 void main() {
-    // Flip Y so tilemap matches screen
     vec2 uv = vUV;
-    uv.x += uOffset;
-
-    // Keep tiles square
     uv.x *= getAspect();
 
+    vec4 tex;
 
-    vec2 tileCoord, tileUVs;
-    getTileCoordAndUV(uv, numTiles, tileCoord, tileUVs);
+    if (uRenderMode == 0) {
+        vec2 tileCoord, tileUVs;
+        getTileCoordAndUV(uv, numTiles, tileCoord, tileUVs);
 
-    // Sample tilemap
-    vec2 mapUV = (tileCoord + 0.5) / tileMapSize;
-    vec3 tileData = texture2D(tileMap, mapUV).rgb;
+        vec2 mapUV = (tileCoord + 0.5) / tileMapSize;
+        vec3 tileData = texture2D(tileMap, mapUV).rgb;
 
-    // Determine final color
-    // vec3 color = vec3(tileUVs, 0.0);
-    vec3 color = getTileColor(tileData, tileCoord, numTiles, tileUVs);
-    // vec3 color = texture2D(atlasTexture,uv).rgb;
-    gl_FragColor = vec4(color, 1.0);
+        vec3 colorRgb = getTileColor(tileData, tileCoord, numTiles, tileUVs);
+        gl_FragColor = vec4(colorRgb, 1.0);
+
+    } else if (uRenderMode == 1) {
+        vec4 tex = texture2D(playerTexture, uv);
+        gl_FragColor = tex;
+
+    } else if (uRenderMode == 2) {
+        vec4 tex = texture2D(atlasTexture, uv);
+        gl_FragColor = tex;
+    }
 }

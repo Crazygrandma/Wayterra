@@ -5,6 +5,7 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/render/allocator.h>
+#include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/log.h>
 #include <stdio.h>
@@ -20,24 +21,83 @@
 
 #include <time.h>
 
-float get_minutes_of_day(void) {
-    time_t now = time(NULL);
-    struct tm *local = localtime(&now);
 
-    if (local == NULL) {
-        return -1.0f; // error case
-    }
+typedef struct wayterra_renderer{
 
-    int hours = local->tm_hour;
-    int minutes = local->tm_min;
-    int seconds = local->tm_sec;
+    GLuint shader_program;
 
-    // Convert everything to total minutes (including fractional part)
-    float total_minutes = hours * 60.0f
-                        + minutes
-                        + seconds / 60.0f;
+    GLuint tileMapTexture;
+    GLuint atlasTexture;
+    GLuint playerSpriteTexture;
 
-    return total_minutes;
+    GLint pos_loc;
+    GLint uv_loc;
+
+    GLint loc_renderMode;
+    
+    GLint loc_offset;
+    GLint loc_tileMap;
+    GLint loc_atlas;
+    GLint loc_player;
+    GLint loc_windowWidth;
+    GLint loc_windowHeight;
+
+    GLint loc_tileMapSize;
+    GLint loc_numTiles;
+
+    bool shader_initialized;
+    float vertices[24]; // 6 vertices * 4 floats (x, y, u, v)
+
+    float player_vertices[24]; // same format: x, y, u, v
+} wayterra_renderer_t;
+
+
+/* Per-output state */
+typedef struct wayterra_output {
+    struct wayterra_server *server;
+    struct wlr_output *wlr_output;
+
+    struct wl_listener frame;
+    struct wl_listener request_state;
+    struct wl_listener destroy;
+
+    struct wl_list link; // link into server->outputs list
+  
+    wayterra_renderer_t *renderer;  // <--- this line
+} wayterra_output_t;
+
+
+
+/* Main compositor state */
+typedef struct wayterra_server {
+    struct wl_display *wl_display;
+    struct wl_event_loop *event_loop;   /* Core Wayland event loop */
+
+    struct wlr_backend *backend;
+    struct wlr_renderer *renderer;
+    struct wlr_allocator *allocator;
+
+    // NOT BEING USED
+    struct wlr_scene *scene;            /* Scene graph root */
+    struct wlr_scene_output_layout *scene_layout;
+        
+
+	struct wlr_cursor *cursor;
+    
+    struct wlr_output_layout *output_layout;
+    struct wl_list outputs;             /* list of wayterra_output_t */
+    struct wl_listener new_output;      /* listens for backend->events.new_output */
+
+} wayterra_server_t;
+
+
+
+float get_time_seconds(void) {
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+
+    return (float)ts.tv_sec + (float)ts.tv_nsec / 1e9f;
 }
 
 GLuint create_shader_program_from_files(const char *vertex_path, const char *fragment_path) {
@@ -86,68 +146,6 @@ GLuint create_shader_program_from_files(const char *vertex_path, const char *fra
     return program;
 }
 
-typedef struct wayterra_renderer{
-
-    GLuint shader_program;
-
-    GLuint tileMapTexture;
-    GLuint atlasTexture;
-
-    GLint pos_loc;
-    GLint uv_loc;
-
-    GLint loc_offset;
-    GLint loc_tileMap;
-    GLint loc_atlas;
-    GLint loc_windowWidth;
-    GLint loc_windowHeight;
-
-    GLint loc_tileMapSize;
-    GLint loc_numTiles;
-
-    bool shader_initialized;
-    float vertices[24]; // 6 vertices * 4 floats (x, y, u, v)
-
-    float player_vertices[24]; // same format: x, y, u, v
-} wayterra_renderer_t;
-
-
-/* Per-output state */
-typedef struct wayterra_output {
-    struct wayterra_server *server;
-    struct wlr_output *wlr_output;
-
-    struct wl_listener frame;
-    struct wl_listener request_state;
-    struct wl_listener destroy;
-
-    struct wl_list link; // link into server->outputs list
-  
-    wayterra_renderer_t *renderer;  // <--- this line
-} wayterra_output_t;
-
-
-
-/* Main compositor state */
-typedef struct wayterra_server {
-    struct wl_display *wl_display;
-    struct wl_event_loop *event_loop;   /* Core Wayland event loop */
-
-    struct wlr_backend *backend;
-    struct wlr_renderer *renderer;
-    struct wlr_allocator *allocator;
-
-    // NOT BEING USED
-    struct wlr_scene *scene;            /* Scene graph root */
-    struct wlr_scene_output_layout *scene_layout;
-        
-
-    struct wlr_output_layout *output_layout;
-    struct wl_list outputs;             /* list of wayterra_output_t */
-    struct wl_listener new_output;      /* listens for backend->events.new_output */
-
-} wayterra_server_t;
-
 // Function declarations
 static void setup(wayterra_server_t *server);
 static void run(wayterra_server_t *server);
@@ -157,67 +155,124 @@ static void cleanup(wayterra_server_t *server);
 static void output_frame(struct wl_listener *listener, void *data);
 
 
-void initialize_shader(wayterra_renderer_t *renderer){
 
-    renderer->shader_program = create_shader_program_from_files(
-            "vertex.glsl", "fragment.glsl"
-            );
-    if (!renderer->shader_program) {
+static void make_quad(float *dst, float x0, float y0, float x1, float y1) {
+    float quad[24] = {
+        x0, y0, 0.0f, 0.0f,
+        x1, y0, 1.0f, 0.0f,
+        x1, y1, 1.0f, 1.0f,
+
+        x0, y0, 0.0f, 0.0f,
+        x1, y1, 1.0f, 1.0f,
+        x0, y1, 0.0f, 1.0f
+    };
+    memcpy(dst, quad, sizeof(quad));
+}
+
+static void init_shader(wayterra_renderer_t *r) {
+    r->shader_program = create_shader_program_from_files(
+        "vertex.glsl", "fragment.glsl"
+    );
+
+    if (!r->shader_program) {
         fprintf(stderr, "Failed to create shader program\n");
+        return;
     }
 
-    // Load texture, bind, cleanup  
-    renderer->tileMapTexture = load_texture("assets/tilemap.png");
-    renderer->atlasTexture   = load_texture("assets/atlas.png");
+    r->pos_loc = glGetAttribLocation(r->shader_program, "aPos");
+    r->uv_loc  = glGetAttribLocation(r->shader_program, "aUV");
 
-    // Store vertex data in persistent array
-    float verts[24] = {
-        -1.0f, -1.0f, 0.0f, 0.0f,
-        1.0f, -1.0f, 1.0f, 0.0f,
-        1.0f,  1.0f, 1.0f, 1.0f,
 
-        -1.0f, -1.0f, 0.0f, 0.0f,
-        1.0f,  1.0f, 1.0f, 1.0f,
-        -1.0f,  1.0f, 0.0f, 1.0f
-    };
-    memcpy(renderer->vertices, verts, sizeof(verts));
+    r->loc_renderMode   = glGetUniformLocation(r->shader_program, "uRenderMode");
 
-    // Player vertex spec
-    float player_verts[24] = {
-        // Example: smaller quad in center
-        -0.1f, -0.1f, 0.0f, 0.0f,
-        0.1f, -0.1f, 1.0f, 0.0f,
-        0.1f,  0.1f, 1.0f, 1.0f,
+    r->loc_tileMap      = glGetUniformLocation(r->shader_program, "tileMap");
+    r->loc_atlas        = glGetUniformLocation(r->shader_program, "atlasTexture");
+    r->loc_player       = glGetUniformLocation(r->shader_program, "playerTexture");
+    r->loc_windowWidth  = glGetUniformLocation(r->shader_program, "windowWidth");
+    r->loc_windowHeight = glGetUniformLocation(r->shader_program, "windowHeight");
+    r->loc_tileMapSize  = glGetUniformLocation(r->shader_program, "tileMapSize");
+    r->loc_numTiles     = glGetUniformLocation(r->shader_program, "numTiles");
+    r->loc_offset       = glGetUniformLocation(r->shader_program, "uOffset");
+}
 
-        -0.1f, -0.1f, 0.0f, 0.0f,
-        0.1f,  0.1f, 1.0f, 1.0f,
-        -0.1f,  0.1f, 0.0f, 1.0f
-    };
-    memcpy(renderer->player_vertices, player_verts, sizeof(player_verts));
-    // Cache attribute locations
-    renderer->pos_loc = glGetAttribLocation(renderer->shader_program, "aPos");
-    renderer->uv_loc  = glGetAttribLocation(renderer->shader_program, "aUV");
+static void init_textures(wayterra_renderer_t *r) {
+    r->tileMapTexture        = load_texture("assets/tilemap.png");
+    r->atlasTexture          = load_texture("assets/atlas.png");
+    r->playerSpriteTexture   = load_texture("assets/player.png");
+}
 
-    // Cache uniform locations
-    renderer->loc_tileMap      = glGetUniformLocation(renderer->shader_program, "tileMap");
-    renderer->loc_atlas        = glGetUniformLocation(renderer->shader_program, "atlasTexture");
-    renderer->loc_windowWidth  = glGetUniformLocation(renderer->shader_program, "windowWidth");
-    renderer->loc_windowHeight = glGetUniformLocation(renderer->shader_program, "windowHeight");
-    renderer->loc_tileMapSize  = glGetUniformLocation(renderer->shader_program, "tileMapSize");
-    renderer->loc_numTiles     = glGetUniformLocation(renderer->shader_program, "numTiles");
-    renderer->loc_offset       = glGetUniformLocation(renderer->shader_program, "uOffset");
+void initialize_renderer(wayterra_renderer_t *r) {
+    init_shader(r);
+    init_textures(r);
 
-    renderer->shader_initialized = true;
+    // Enable alpha blend
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    make_quad(r->vertices, -1.0f, -1.0f, 1.0f, 1.0f);   // fullscreen
+    make_quad(r->player_vertices, -0.1f, -0.1f, 0.1f, 0.1f);
+
+    r->shader_initialized = true;
+}
+
+static void setup_frame(wayterra_renderer_t *r, int width, int height) {
+    glUseProgram(r->shader_program);
+
+    glUniform1f(r->loc_windowWidth,  (float)width);
+    glUniform1f(r->loc_windowHeight, (float)height);
+    glUniform1f(r->loc_numTiles, NUM_TILES);
+    glUniform2f(r->loc_tileMapSize, TILEMAP_WIDTH, TILEMAP_HEIGHT);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, r->tileMapTexture);
+    glUniform1i(r->loc_tileMap, 0);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, r->atlasTexture);
+    glUniform1i(r->loc_atlas, 1);
+
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, r->playerSpriteTexture);
+    glUniform1i(r->loc_player, 2);
+}
+
+
+static void bind_quad(wayterra_renderer_t *r, float *verts) {
+    if (r->pos_loc >= 0) {
+        glVertexAttribPointer(r->pos_loc, 2, GL_FLOAT, GL_FALSE,
+                              4 * sizeof(float), verts);
+        glEnableVertexAttribArray(r->pos_loc);
+    }
+
+    if (r->uv_loc >= 0) {
+        glVertexAttribPointer(r->uv_loc, 2, GL_FLOAT, GL_FALSE,
+                              4 * sizeof(float), verts + 2);
+        glEnableVertexAttribArray(r->uv_loc);
+    }
+}
+
+static void draw_background(wayterra_renderer_t *r) {
+    glUniform1i(r->loc_renderMode, 0); // Tell shader to render using the tile map mode
+    glUniform2f(r->loc_offset, 0.0f, 0.0f);
+
+    bind_quad(r, r->vertices);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+static void draw_player(wayterra_renderer_t *r, float x, float y) {
+    glUniform1i(r->loc_renderMode, 1); // Tell shader to render using player mode
+    glUniform2f(r->loc_offset, x, y);
+
+    bind_quad(r, r->player_vertices);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 static void output_frame(struct wl_listener *listener, void *data) {
-
     wayterra_output_t *output =
         wl_container_of(listener, output, frame);
 
     struct wlr_output *wlr_output = output->wlr_output;
-
-    wayterra_renderer_t *renderer = output->renderer;
+    wayterra_renderer_t *r = output->renderer;
 
     struct wlr_output_state state;
     wlr_output_state_init(&state);
@@ -230,64 +285,20 @@ static void output_frame(struct wl_listener *listener, void *data) {
         return;
     }
 
-
-    if (!renderer->shader_initialized) {
-        initialize_shader(renderer);
+    if (!r->shader_initialized) {
+        initialize_renderer(r);
     }
 
-    /* Get output size */
     int width, height;
     wlr_output_effective_resolution(wlr_output, &width, &height);
-    
-
-    glUseProgram(renderer->shader_program);
-
-    // Update window-dependent or dynamic uniforms
-    glUniform1f(renderer->loc_windowWidth,  (float)width);
-    glUniform1f(renderer->loc_windowHeight, (float)height);
-    glUniform1f(renderer->loc_offset, get_minutes_of_day());
-    glUniform1f(renderer->loc_numTiles,     NUM_TILES);
-    glUniform2f(renderer->loc_tileMapSize,  TILEMAP_WIDTH, TILEMAP_HEIGHT);
-
-    // Bind textures per frame (texture units can change)
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, renderer->tileMapTexture);   // assign in output struct
-    glUniform1i(renderer->loc_tileMap, 0);
-
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, renderer->atlasTexture);
-    glUniform1i(renderer->loc_atlas, 1);
 
     glViewport(0, 0, width, height);
 
-    // Bind vertex attributes to the persistent array
-    if (renderer->pos_loc >= 0) {
-        glVertexAttribPointer(renderer->pos_loc, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), renderer->vertices);
-        glEnableVertexAttribArray(renderer->pos_loc);
-    }
-
-    if (renderer->uv_loc >= 0) {
-        glVertexAttribPointer(renderer->uv_loc, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), renderer->vertices + 2);
-        glEnableVertexAttribArray(renderer->uv_loc);
-    }
-
-    // Draw full-screen quad
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    setup_frame(r, width, height);
 
 
-    // Now render player on top
-    if (renderer->pos_loc >= 0) {
-        glVertexAttribPointer(renderer->pos_loc, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), renderer->player_vertices);
-        glEnableVertexAttribArray(renderer->pos_loc);
-    }
-
-    if (renderer->uv_loc >= 0) {
-        glVertexAttribPointer(renderer->uv_loc, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), renderer->player_vertices + 2);
-        glEnableVertexAttribArray(renderer->uv_loc);
-    }
-
-    // Draw player quad
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    draw_background(r);
+    draw_player(r, 0.0, 0.0);
 
     wlr_render_pass_submit(pass);
     wlr_output_commit_state(wlr_output, &state);
@@ -420,6 +431,12 @@ void setup(wayterra_server_t *server) {
             server->scene,
             server->output_layout
         );
+	/*
+	 * Creates a cursor, which is a wlroots utility for tracking the cursor
+	 * image shown on screen.
+	 */
+	// server->cursor = wlr_cursor_create();
+	// wlr_cursor_attach_output_layout(server->cursor, server->output_layout);
 }
 
 void run(wayterra_server_t *server) {
@@ -461,6 +478,8 @@ void cleanup(wayterra_server_t *server) {
     /* Destroy backend */
     if (server->backend)
         wlr_backend_destroy(server->backend);
+
+    wlr_cursor_destroy(server->cursor);
 
     /* Destroy display (after everything else) */
     if (server->wl_display)
