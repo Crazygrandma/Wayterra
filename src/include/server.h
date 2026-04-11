@@ -50,16 +50,6 @@ typedef struct wayterra_server {
 
 } wayterra_server_t;
 
-typedef struct wayterra_keyboard {
-	wayterra_server_t *server;
-	struct wlr_keyboard *wlr_keyboard;
-
-	struct wl_listener modifiers;
-	struct wl_listener key;
-	struct wl_listener destroy;
-
-    struct wl_list link;
-} wayterra_keyboard_t;
 
 void setup(wayterra_server_t *server);
 void run(wayterra_server_t *server);
