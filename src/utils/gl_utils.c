@@ -1,6 +1,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "gl_utils.h"
 
+#include <stdio.h>
+
 GLuint load_texture(const char *path) {
     int x, y, n;
     unsigned char *data = stbi_load(path, &x, &y, &n, 0);
@@ -52,4 +54,3 @@ GLuint compile_shader(GLenum type, const char* src) {
     }
     return shader;
 }
-

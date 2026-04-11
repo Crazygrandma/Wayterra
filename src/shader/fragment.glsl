@@ -12,6 +12,7 @@ uniform sampler2D tileMap;
 uniform vec2 tileMapSize;
 uniform sampler2D atlasTexture;
 uniform sampler2D playerTexture;
+uniform sampler2D logoTexture;
 
 
 
@@ -48,11 +49,11 @@ vec3 getTileColor(vec3 tileData, vec2 tileCoord, float numTiles, vec2 tileUVs) {
 
 void main() {
     vec2 uv = vUV;
-    uv.x *= getAspect();
 
     vec4 tex;
 
     if (uRenderMode == 0) {
+        uv.x *= getAspect();
         vec2 tileCoord, tileUVs;
         getTileCoordAndUV(uv, numTiles, tileCoord, tileUVs);
 
@@ -63,11 +64,15 @@ void main() {
         gl_FragColor = vec4(colorRgb, 1.0);
 
     } else if (uRenderMode == 1) {
+        
         vec4 tex = texture2D(playerTexture, uv);
+        //vec4 tex = vec4(1.0);
         gl_FragColor = tex;
 
     } else if (uRenderMode == 2) {
-        vec4 tex = texture2D(atlasTexture, uv);
+        // UI / Logo
+        vec4 tex = texture2D(logoTexture, uv);
+        //vec4 tex = vec4(1.0);
         gl_FragColor = tex;
     }
 }

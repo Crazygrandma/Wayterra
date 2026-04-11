@@ -1,5 +1,8 @@
 #include "file_utils.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
 char* load_file(const char* path) {
     FILE* f = fopen(path, "rb");
     if (!f) {
