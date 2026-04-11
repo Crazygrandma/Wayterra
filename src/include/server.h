@@ -40,7 +40,26 @@ typedef struct wayterra_server {
     struct wlr_scene_output_layout *scene_layout;
 
     struct wl_listener new_output;
+
+
+    // INPUT
+    struct wlr_seat *seat;
+    struct wl_listener new_input;
+
+    struct wl_list keyboards; // wayterra_keyboard_t::link
+
 } wayterra_server_t;
+
+typedef struct wayterra_keyboard {
+	wayterra_server_t *server;
+	struct wlr_keyboard *wlr_keyboard;
+
+	struct wl_listener modifiers;
+	struct wl_listener key;
+	struct wl_listener destroy;
+
+    struct wl_list link;
+} wayterra_keyboard_t;
 
 void setup(wayterra_server_t *server);
 void run(wayterra_server_t *server);
