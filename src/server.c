@@ -84,13 +84,8 @@ void setup(wayterra_server_t *server) {
             server->scene,
             server->output_layout
         );
-	/*
-	 * Creates a cursor, which is a wlroots utility for tracking the cursor
-	 * image shown on screen.
-	 */
-	// server->cursor = wlr_cursor_create();
-	// wlr_cursor_attach_output_layout(server->cursor, server->output_layout);
 }
+
 void run(wayterra_server_t *server) {
     /* Create Wayland socket */
     const char *socket =

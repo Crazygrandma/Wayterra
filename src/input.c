@@ -10,6 +10,7 @@
 #include "config.h"
 #include "input.h"
 #include "server.h"
+#include "renderer.h"
 
 static void wayterra_handle_keyboard_destroy(struct wl_listener *listener, void *data) {
 	/* This event is raised by the keyboard base wlr_input_device to signal
@@ -25,7 +26,7 @@ static void wayterra_handle_keyboard_destroy(struct wl_listener *listener, void 
 	free(keyboard);
 }
 
-static bool handle_keybinding(wayterra_server_t *server, xkb_keysym_t sym) {
+static bool handle_keybinding(wayterra_keyboard_t *keyboard, wayterra_server_t *server, xkb_keysym_t sym) {
 	/*
 	 * Here we handle compositor keybindings. This is when the compositor is
 	 * processing keys, rather than passing them on to the client for its own
@@ -37,6 +38,10 @@ static bool handle_keybinding(wayterra_server_t *server, xkb_keysym_t sym) {
 	case XKB_KEY_Escape:
 		wl_display_terminate(server->wl_display);
 		break;
+    case XKB_KEY_Tab:
+        keyboard->movement_mode = !keyboard->movement_mode;
+        printf("Toggle movement mode");
+        break;
 	default:
 		return false;
 	}
@@ -58,41 +63,97 @@ void wayterra_handle_modifiers(struct wl_listener *listener, void *data) {
         &keyboard->wlr_keyboard->modifiers
     );
 }
-
 static void wayterra_handle_key(
-		struct wl_listener *listener, void *data) {
-	/* This event is raised when a key is pressed or released. */
-	wayterra_keyboard_t *keyboard =
-		wl_container_of(listener, keyboard, key);
-	wayterra_server_t *server = keyboard->server;
-	struct wlr_keyboard_key_event *event = data;
-	struct wlr_seat *seat = server->seat;
+        struct wl_listener *listener, void *data) {
+    /* This event is raised when a key is pressed or released. */
+    wayterra_keyboard_t *keyboard =
+        wl_container_of(listener, keyboard, key);
+    wayterra_server_t *server = keyboard->server;
+    wayterra_output_t *output =
+        wl_container_of(server->outputs.next, output, link);
 
-	/* Translate libinput keycode -> xkbcommon */
-	uint32_t keycode = event->keycode + 8;
-	/* Get a list of keysyms based on the keymap for this keyboard */
-	const xkb_keysym_t *syms;
-	int nsyms = xkb_state_key_get_syms(
-			keyboard->wlr_keyboard->xkb_state, keycode, &syms);
+    wayterra_renderer_t *renderer = output->renderer;
+    struct wlr_keyboard_key_event *event = data;
+    struct wlr_seat *seat = server->seat;
 
-	bool handled = false;
-	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
-	if ((modifiers & MODIFIER_KEY) &&
-			event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-		/* If alt is held down and this button was _pressed_, we attempt to
-		 * process it as a compositor keybinding. */
-		for (int i = 0; i < nsyms; i++) {
-			handled = handle_keybinding(server, syms[i]);
-		}
-	}
+    /* Translate libinput keycode -> xkbcommon */
+    uint32_t keycode = event->keycode + 8;
 
-	if (!handled) {
-		/* Otherwise, we pass it along to the client. */
-		wlr_seat_set_keyboard(seat, keyboard->wlr_keyboard);
-		wlr_seat_keyboard_notify_key(seat, event->time_msec,
-			event->keycode, event->state);
-	}
+    /* Get a list of keysyms based on the keymap for this keyboard */
+    const xkb_keysym_t *syms;
+    int nsyms = xkb_state_key_get_syms(
+        keyboard->wlr_keyboard->xkb_state, keycode, &syms);
+
+    bool handled = false;
+    uint32_t modifiers =
+        wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
+
+    /* Always allow Tab toggle (so you don't get stuck in movement mode) */
+    if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+        for (int i = 0; i < nsyms; i++) {
+            if (syms[i] == XKB_KEY_Tab) {
+                handled = handle_keybinding(keyboard, server, syms[i]);
+            }
+        }
+    }
+
+    /* Movement mode: WASD without modifier */
+    if (!handled &&
+        keyboard->movement_mode &&
+        event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+
+        for (int i = 0; i < nsyms; i++) {
+            switch (syms[i]) {
+            case XKB_KEY_w:
+            case XKB_KEY_W:
+                update_player_pos(renderer, 0, -PLAYER_SPEED);
+                handled = true;
+                break;
+
+            case XKB_KEY_s:
+            case XKB_KEY_S:
+                update_player_pos(renderer, 0, PLAYER_SPEED);
+                handled = true;
+                break;
+
+            case XKB_KEY_a:
+            case XKB_KEY_A:
+                update_player_pos(renderer, -PLAYER_SPEED, 0);
+                handled = true;
+                break;
+
+            case XKB_KEY_d:
+            case XKB_KEY_D:
+                update_player_pos(renderer, PLAYER_SPEED, 0);
+                handled = true;
+                break;
+            }
+        }
+    }
+
+    /* Normal compositor keybindings (only when movement mode is OFF) */
+    if (!handled &&
+        !keyboard->movement_mode &&
+        (modifiers & MODIFIER_KEY) &&
+        event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+
+        for (int i = 0; i < nsyms; i++) {
+            handled = handle_keybinding(keyboard, server, syms[i]);
+        }
+    }
+
+    /* Pass through to client if not handled */
+    if (!handled) {
+        wlr_seat_set_keyboard(seat, keyboard->wlr_keyboard);
+        wlr_seat_keyboard_notify_key(
+            seat,
+            event->time_msec,
+            event->keycode,
+            event->state
+        );
+    }
 }
+
 
 void wayterra_new_keyboard(wayterra_server_t *server,
                           struct wlr_input_device *device) {
@@ -104,6 +165,8 @@ void wayterra_new_keyboard(wayterra_server_t *server,
     keyboard->server = server;
     keyboard->wlr_keyboard = wlr_keyboard;
 
+    // Disbable movement on first register
+    keyboard->movement_mode = false;
     // --- XKB keymap setup ---
     struct xkb_context *context =
         xkb_context_new(XKB_CONTEXT_NO_FLAGS);

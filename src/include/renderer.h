@@ -34,6 +34,7 @@ typedef struct wayterra_renderer{
     bool shader_initialized;
     float vertices[24]; // 6 vertices * 4 floats (x, y, u, v)
 
+    float playerX,playerY;
     float player_vertices[24]; // same format: x, y, u, v
 
     float logo_vertices[24]; // same format: x, y, u, v
@@ -42,5 +43,5 @@ typedef struct wayterra_renderer{
 
 void initialize_renderer(wayterra_renderer_t *r);
 void renderer_draw_frame(wayterra_renderer_t *r, int width, int height);
-
+void update_player_pos(wayterra_renderer_t *r,float dx, float dy);
 #endif
