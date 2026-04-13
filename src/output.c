@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <wlr/types/wlr_scene.h>
 
+// TODO use scene graph and render background as scene node?
 void server_new_output(struct wl_listener *listener, void *data) {
     /* Event raised by the backend when a new output is available */
     wayterra_server_t *server =
@@ -92,7 +93,7 @@ void output_frame(struct wl_listener *listener, void *data) {
 
     glViewport(0, 0, width, height);
 
-
+    // TODO Add update function for physics?
     renderer_draw_frame(r, width, height);
 
     wlr_render_pass_submit(pass);

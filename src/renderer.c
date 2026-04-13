@@ -190,6 +190,13 @@ void update_player_pos(wayterra_renderer_t *r, float dx, float dy){
     r->playerY += dy;
 }
 
+// TODO 
+void renderer_update_frame(){
+    // implement player position 
+    // add gravity
+    // collision handling
+}
+
 void renderer_draw_frame(wayterra_renderer_t *r, int width, int height) {
     if (!r->shader_initialized) {
         initialize_renderer(r);
