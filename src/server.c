@@ -71,6 +71,7 @@ void setup(wayterra_server_t *server) {
         &server->new_output
     );
 
+    // Listen for a new input device
 	wl_list_init(&server->keyboards);
 	server->new_input.notify = server_new_input;
 	wl_signal_add(&server->backend->events.new_input, &server->new_input);

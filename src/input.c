@@ -153,36 +153,65 @@ static void wayterra_handle_key(
         );
     }
 }
-
-
 void wayterra_new_keyboard(wayterra_server_t *server,
                           struct wlr_input_device *device) {
+    printf("[keyboard] new input device\n");
+
     struct wlr_keyboard *wlr_keyboard =
         wlr_keyboard_from_input_device(device);
 
+    if (!wlr_keyboard) {
+        printf("[keyboard] ERROR: wlr_keyboard_from_input_device returned NULL\n");
+        return;
+    }
+
     wayterra_keyboard_t *keyboard =
         calloc(1, sizeof(wayterra_keyboard_t));
+
+    if (!keyboard) {
+        printf("[keyboard] ERROR: calloc failed\n");
+        return;
+    }
+
     keyboard->server = server;
     keyboard->wlr_keyboard = wlr_keyboard;
 
-    // Disbable movement on first register
     keyboard->movement_mode = false;
+
     // --- XKB keymap setup ---
+    printf("[keyboard] creating xkb context\n");
+
     struct xkb_context *context =
         xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+
+    if (!context) {
+        printf("[keyboard] ERROR: xkb_context_new failed\n");
+        return;
+    }
 
     struct xkb_keymap *keymap =
         xkb_keymap_new_from_names(context, NULL,
                                  XKB_KEYMAP_COMPILE_NO_FLAGS);
+
+    if (!keymap) {
+        printf("[keyboard] ERROR: xkb_keymap_new_from_names failed\n");
+        xkb_context_unref(context);
+        return;
+    }
+
+    printf("[keyboard] keymap created\n");
 
     wlr_keyboard_set_keymap(wlr_keyboard, keymap);
     xkb_keymap_unref(keymap);
     xkb_context_unref(context);
 
     // Key repeat config
+    printf("[keyboard] setting repeat info\n");
     wlr_keyboard_set_repeat_info(wlr_keyboard, 25, 600);
 
     // --- Event listeners ---
+    printf("[keyboard] setting up listeners\n");
+
     keyboard->modifiers.notify = wayterra_handle_modifiers;
     wl_signal_add(&wlr_keyboard->events.modifiers,
                   &keyboard->modifiers);
@@ -196,11 +225,16 @@ void wayterra_new_keyboard(wayterra_server_t *server,
                   &keyboard->destroy);
 
     // --- Attach to seat ---
+    printf("[keyboard] attaching to seat\n");
     wlr_seat_set_keyboard(server->seat, wlr_keyboard);
 
     // --- Store keyboard ---
+    printf("[keyboard] inserting into list\n");
     wl_list_insert(&server->keyboards, &keyboard->link);
+
+    printf("[keyboard] setup complete\n");
 }
+
 
 void server_new_input(struct wl_listener *listener, void *data) {
     wayterra_server_t *server =
