@@ -177,26 +177,12 @@ void initialize_renderer(wayterra_renderer_t *r) {
     make_quad(r->player_vertices, -0.04f, -0.1f, 0.04f, 0.1f);
     make_quad(r->logo_vertices, -0.5f, -0.25f, 0.5f, 0.25f);
 
-    // Start player pos
-    r->playerX = 0.0;
-    r->playerY = 0.0;
-
     
     r->shader_initialized = true;
 }
 
-void update_player_pos(wayterra_renderer_t *r, float dx, float dy){
-    r->playerX += dx;
-    r->playerY += dy;
-}
 
 // TODO 
-void renderer_update_frame(){
-    // implement player position 
-    // add gravity
-    // collision handling
-}
-
 void renderer_draw_frame(wayterra_renderer_t *r, int width, int height) {
     if (!r->shader_initialized) {
         initialize_renderer(r);
@@ -208,6 +194,5 @@ void renderer_draw_frame(wayterra_renderer_t *r, int width, int height) {
 
     // TODO update player movement with movement bools and update function
     draw_background(r);
-    draw_player(r,r->playerX, r->playerY);
     draw_logo(r, 0.0, -0.3);
 }

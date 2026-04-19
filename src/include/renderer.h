@@ -42,25 +42,8 @@ void renderer_shutdown(wayterra_renderer_t *r);
 /* rendering */
 void renderer_draw_frame(
     wayterra_renderer_t *r,
-    const struct wayterra_game_state *state,
     int width,
     int height
-);
-
-/* optional helpers (render-only utilities) */
-void renderer_update_uniforms(
-    wayterra_renderer_t *r,
-    int width,
-    int height
-);
-
-void renderer_draw_player(
-    wayterra_renderer_t *r,
-    const struct wayterra_game_state *state
-);
-
-void renderer_draw_logo(
-    wayterra_renderer_t *r
 );
 
 #endif

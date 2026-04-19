@@ -19,6 +19,7 @@ executable(
   'renderer.c',
   'server.c',
   'wayterra.c',
+  'clients.c',
   'utils/error.c',
   'utils/file_utils.c',
   'utils/gl_utils.c',

@@ -1,9 +1,11 @@
 #include "output.h"
+#include "input.h"
 #include "renderer.h"
 #include "server.h"
 #include <stdbool.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_scene.h>
+
 
 // TODO use scene graph and render background as scene node?
 void server_new_output(struct wl_listener *listener, void *data) {
@@ -43,6 +45,7 @@ void server_new_output(struct wl_listener *listener, void *data) {
     wl_list_init(&output->frame.link);
     output->frame.notify = output_frame;
     wl_signal_add(&wlr_output->events.frame, &output->frame);
+    // TODO implement to allow resizing and unplug to not crash 
     //
     // /* State request listener */
     // output->request_state.notify = output_request_state;
@@ -65,38 +68,64 @@ void server_new_output(struct wl_listener *listener, void *data) {
 }
 
 
+
+
+
 void output_frame(struct wl_listener *listener, void *data) {
-    (void)data;
+	/* This function is called every time an output is ready to display a frame,
+	 * generally at the output's refresh rate (e.g. 60Hz). */
+
     wayterra_output_t *output =
         wl_container_of(listener, output, frame);
 
-    struct wlr_output *wlr_output = output->wlr_output;
-    wayterra_renderer_t *r = output->renderer;
+	struct wlr_scene *scene = output->server->scene;
 
-    struct wlr_output_state state;
-    wlr_output_state_init(&state);
+	struct wlr_scene_output *scene_output = wlr_scene_get_scene_output(
+		scene, output->wlr_output);
 
-    struct wlr_render_pass *pass =
-        wlr_output_begin_render_pass(wlr_output, &state, NULL);
+	/* Render the scene if needed and commit the output */
+	wlr_scene_output_commit(scene_output, NULL);
 
-    if (!pass) {
-        wlr_output_state_finish(&state);
-        return;
-    }
-
-    if (!r->shader_initialized) {
-        initialize_renderer(r);
-    }
-
-    int width, height;
-    wlr_output_effective_resolution(wlr_output, &width, &height);
-
-    glViewport(0, 0, width, height);
-
-    // TODO Add update function for physics?
-    renderer_draw_frame(r, width, height);
-
-    wlr_render_pass_submit(pass);
-    wlr_output_commit_state(wlr_output, &state);
-    wlr_output_state_finish(&state);
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	wlr_scene_output_send_frame_done(scene_output, &now);
 }
+
+
+
+
+// void output_frame(struct wl_listener *listener, void *data) {
+//     (void)data;
+//     wayterra_output_t *output =
+//         wl_container_of(listener, output, frame);
+//
+//     struct wlr_output *wlr_output = output->wlr_output;
+//     wayterra_renderer_t *r = output->renderer;
+//
+//     struct wlr_output_state state;
+//     wlr_output_state_init(&state);
+//
+//     struct wlr_render_pass *pass =
+//         wlr_output_begin_render_pass(wlr_output, &state, NULL);
+//
+//     if (!pass) {
+//         wlr_output_state_finish(&state);
+//         return;
+//     }
+//
+//     if (!r->shader_initialized) {
+//         initialize_renderer(r);
+//     }
+//
+//     int width, height;
+//     wlr_output_effective_resolution(wlr_output, &width, &height);
+//
+//     glViewport(0, 0, width, height);
+//
+//     // TODO Add update function for physics?
+//     renderer_draw_frame(r, width, height);
+//
+//     wlr_render_pass_submit(pass);
+//     wlr_output_commit_state(wlr_output, &state);
+//     wlr_output_state_finish(&state);
+// }
