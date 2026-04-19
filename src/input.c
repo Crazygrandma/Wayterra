@@ -97,6 +97,7 @@ static void wayterra_handle_key(
         }
     }
 
+    // TODO Call renderer input handler
     /* Movement mode: WASD without modifier */
     if (!handled &&
         keyboard->movement_mode &&
@@ -155,8 +156,8 @@ static void wayterra_handle_key(
 }
 void wayterra_new_keyboard(wayterra_server_t *server,
                           struct wlr_input_device *device) {
-    printf("[keyboard] new input device\n");
 
+    
     struct wlr_keyboard *wlr_keyboard =
         wlr_keyboard_from_input_device(device);
 
@@ -237,6 +238,7 @@ void wayterra_new_keyboard(wayterra_server_t *server,
 
 
 void server_new_input(struct wl_listener *listener, void *data) {
+    // Get pointer to the server struct for this listener 
     wayterra_server_t *server =
         wl_container_of(listener, server, new_input);
 

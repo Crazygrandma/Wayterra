@@ -16,6 +16,7 @@
 
 
 void setup(wayterra_server_t *server) {
+    // Turn on logging so we can see what goes wrong
     wlr_log_init(WLR_DEBUG, NULL);
 
 
@@ -71,7 +72,7 @@ void setup(wayterra_server_t *server) {
         &server->new_output
     );
 
-    // Listen for a new input device
+    // Listen for new input devices such as a mouse and keyboard
 	wl_list_init(&server->keyboards);
 	server->new_input.notify = server_new_input;
 	wl_signal_add(&server->backend->events.new_input, &server->new_input);
