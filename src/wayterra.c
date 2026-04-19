@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 
     wayterra_server_t server = {0};
    
-
+    
     // Setup the structs and listeners
     setup(&server);
     // Run the event loop
