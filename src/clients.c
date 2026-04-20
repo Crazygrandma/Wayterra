@@ -6,10 +6,50 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_scene.h>
 
+void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
+	/* Called when the xdg_toplevel is destroyed. */
+	struct wayterra_toplevel *toplevel = wl_container_of(listener, toplevel, destroy);
+
+	// wl_list_remove(&toplevel->map.link);
+	// wl_list_remove(&toplevel->unmap.link);
+	wl_list_remove(&toplevel->commit.link);
+	wl_list_remove(&toplevel->destroy.link);
+	// wl_list_remove(&toplevel->request_move.link);
+	// wl_list_remove(&toplevel->request_resize.link);
+	// wl_list_remove(&toplevel->request_maximize.link);
+	// wl_list_remove(&toplevel->request_fullscreen.link);
+
+	free(toplevel);
+}
+
+void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
+	/* Called when a new surface state is committed. */
+	struct wayterra_toplevel *toplevel = wl_container_of(listener, toplevel, commit);
+
+	if (toplevel->xdg_toplevel->base->initial_commit) {
+		/* When an xdg_surface performs an initial commit, the compositor must
+		 * reply with a configure so the client can map the surface. tinywl
+		 * configures the xdg_toplevel with 0,0 size to let the client pick the
+		 * dimensions itself. */
+		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, 500, 500);
+	}
+}
+
+// void xdg_toplevel_map(struct wl_listener *listener, void *data) {
+// 	/* Called when the surface is mapped, or ready to display on-screen. */
+// 	struct wayterra_toplevel *toplevel = wl_container_of(listener, toplevel, map);
+//
+// 	wl_list_insert(&toplevel->server->toplevels, &toplevel->link);
+//
+// 	focus_toplevel(toplevel);
+// }
+//
 void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	/* This event is raised when a client creates a new toplevel (application window). */
 	wayterra_server_t *server = wl_container_of(listener, server, new_xdg_toplevel);
 	struct wlr_xdg_toplevel *xdg_toplevel = data;
+
+    printf("[clients] requesting new xdg_toplevel\n");
 
 	/* Allocate a tinywl_toplevel for this surface */
 	struct wayterra_toplevel *toplevel = calloc(1, sizeof(*toplevel));
@@ -21,15 +61,15 @@ void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	xdg_toplevel->base->data = toplevel->scene_tree;
 
 	/* Listen to the various events it can emit */
-	// toplevel->map.notify = xdg_toplevel_map;
+    // toplevel->map.notify = xdg_toplevel_map;
 	// wl_signal_add(&xdg_toplevel->base->surface->events.map, &toplevel->map);
 	// toplevel->unmap.notify = xdg_toplevel_unmap;
 	// wl_signal_add(&xdg_toplevel->base->surface->events.unmap, &toplevel->unmap);
-	// toplevel->commit.notify = xdg_toplevel_commit;
-	// wl_signal_add(&xdg_toplevel->base->surface->events.commit, &toplevel->commit);
+	toplevel->commit.notify = xdg_toplevel_commit;
+	wl_signal_add(&xdg_toplevel->base->surface->events.commit, &toplevel->commit);
 	//
-	// toplevel->destroy.notify = xdg_toplevel_destroy;
-	// wl_signal_add(&xdg_toplevel->events.destroy, &toplevel->destroy);
+	toplevel->destroy.notify = xdg_toplevel_destroy;
+	wl_signal_add(&xdg_toplevel->events.destroy, &toplevel->destroy);
 	//
 	// /* cotd */
 	// toplevel->request_move.notify = xdg_toplevel_request_move;
