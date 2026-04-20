@@ -12,6 +12,10 @@
 #include "server.h"
 #include "renderer.h"
 
+
+// TODO reorder functions and place compositor logic input handling in function game logic keyboard state?
+
+
 static void wayterra_handle_keyboard_destroy(struct wl_listener *listener, void *data) {
 	/* This event is raised by the keyboard base wlr_input_device to signal
 	 * the destruction of the wlr_keyboard. It will no longer receive events
@@ -40,10 +44,6 @@ static bool handle_keybinding(wayterra_keyboard_t *keyboard, wayterra_server_t *
 	case XKB_KEY_Escape:
 		wl_display_terminate(server->wl_display);
 		break;
-    case XKB_KEY_Tab:
-        keyboard->movement_mode = !keyboard->movement_mode;
-        printf("Toggle movement mode");
-        break;
 	default:
 		return false;
 	}
@@ -193,6 +193,7 @@ void wayterra_new_keyboard(wayterra_server_t *server,
         return;
     }
 
+    // TODO change keymap to value of config.h
     struct xkb_keymap *keymap =
         xkb_keymap_new_from_names(context, NULL,
                                  XKB_KEYMAP_COMPILE_NO_FLAGS);

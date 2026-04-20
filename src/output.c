@@ -45,7 +45,7 @@ void server_new_output(struct wl_listener *listener, void *data) {
     wl_list_init(&output->frame.link);
     output->frame.notify = output_frame;
     wl_signal_add(&wlr_output->events.frame, &output->frame);
-    // TODO implement to allow resizing and unplug to not crash 
+    // FIXME! FIXME! to allow resizing and unplug to not crash 
     //
     // /* State request listener */
     // output->request_state.notify = output_request_state;
@@ -82,6 +82,8 @@ void output_frame(struct wl_listener *listener, void *data) {
 
 	struct wlr_scene_output *scene_output = wlr_scene_get_scene_output(
 		scene, output->wlr_output);
+
+    // add background scene node as texture???
 
 	/* Render the scene if needed and commit the output */
 	wlr_scene_output_commit(scene_output, NULL);

@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+// TODO Rework to generic game rendering and game object manager
+
 GLuint create_shader_program_from_files(const char *vertex_path, const char *fragment_path) {
 
     // --- SHADER LOADING (once) ---
