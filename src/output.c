@@ -2,10 +2,49 @@
 #include "input.h"
 #include "renderer.h"
 #include "server.h"
+#include <wlr/render/egl.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_scene.h>
 
+void output_init_fbo(wayterra_output_t *output, int width, int height) {
+    output->width = width;
+    output->height = height;
+
+    // 1. Create texture
+    glGenTextures(1, &output->color_tex);
+    glBindTexture(GL_TEXTURE_2D, output->color_tex);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+                 width, height, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // (optional but good)
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // 2. Create framebuffer
+    glGenFramebuffers(1, &output->fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, output->fbo);
+
+    // 3. Attach texture to FBO
+    glFramebufferTexture2D(GL_FRAMEBUFFER,
+                           GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D,
+                           output->color_tex,
+                           0);
+
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        printf("FBO error: 0x%x\n", status);
+    }
+
+    // 5. Unbind
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 
 // TODO use scene graph and render background as scene node?
 void server_new_output(struct wl_listener *listener, void *data) {
@@ -45,6 +84,7 @@ void server_new_output(struct wl_listener *listener, void *data) {
     wl_list_init(&output->frame.link);
     output->frame.notify = output_frame;
     wl_signal_add(&wlr_output->events.frame, &output->frame);
+
     // FIXME! FIXME! to allow resizing and unplug to not crash 
     //
     // /* State request listener */
@@ -67,67 +107,60 @@ void server_new_output(struct wl_listener *listener, void *data) {
     wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 }
 
+void output_render_to_fbo(wayterra_output_t *output) {
+    // 1. Bind FBO (VERY IMPORTANT: first step)
+    glBindFramebuffer(GL_FRAMEBUFFER, output->fbo);
 
+    // 2. Set viewport to match texture
+    glViewport(0, 0, output->width, output->height);
 
+    // 3. (optional but recommended)
+    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
 
+    // 4. Draw your shader
+    renderer_draw_frame(output->renderer,
+                        output->width,
+                        output->height);
+
+    // 5. Unbind (restore default framebuffer)
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 
 void output_frame(struct wl_listener *listener, void *data) {
-	/* This function is called every time an output is ready to display a frame,
-	 * generally at the output's refresh rate (e.g. 60Hz). */
-
     wayterra_output_t *output =
         wl_container_of(listener, output, frame);
 
-	struct wlr_scene *scene = output->server->scene;
+    struct wlr_scene *scene = output->server->scene;
 
-	struct wlr_scene_output *scene_output = wlr_scene_get_scene_output(
-		scene, output->wlr_output);
+    struct wlr_scene_output *scene_output =
+        wlr_scene_get_scene_output(scene, output->wlr_output);
 
-    // add background scene node as texture???
+    int width, height;
+    wlr_output_effective_resolution(output->wlr_output, &width, &height);
 
-	/* Render the scene if needed and commit the output */
-	wlr_scene_output_commit(scene_output, NULL);
+    /* 1. Lazy init (IMPORTANT: GL context is valid here) */
+    if (!output->renderer->shader_initialized) {
+        initialize_renderer(output->renderer);
+    }
 
-	struct timespec now;
-	clock_gettime(CLOCK_MONOTONIC, &now);
-	wlr_scene_output_send_frame_done(scene_output, &now);
+    if (!output->fbo_initialized) {
+        output_init_fbo(output, width, height);
+        output->fbo_initialized = true;
+    }
+
+
+    // TODO Figure out egl context
+    // When do i have gl context
+    printf("GL context = %p\n", wlr_egl_get_context());
+    printf("GL display = %p\n", wlr_egl_gdisplaylay());
+    /* 2. Render into FBO */
+    output_render_to_fbo(output);
+
+    /* 3. Scene graph still renders whatever is already there */
+    wlr_scene_output_commit(scene_output, NULL);
+
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    wlr_scene_output_send_frame_done(scene_output, &now);
 }
-
-
-
-
-// void output_frame(struct wl_listener *listener, void *data) {
-//     (void)data;
-//     wayterra_output_t *output =
-//         wl_container_of(listener, output, frame);
-//
-//     struct wlr_output *wlr_output = output->wlr_output;
-//     wayterra_renderer_t *r = output->renderer;
-//
-//     struct wlr_output_state state;
-//     wlr_output_state_init(&state);
-//
-//     struct wlr_render_pass *pass =
-//         wlr_output_begin_render_pass(wlr_output, &state, NULL);
-//
-//     if (!pass) {
-//         wlr_output_state_finish(&state);
-//         return;
-//     }
-//
-//     if (!r->shader_initialized) {
-//         initialize_renderer(r);
-//     }
-//
-//     int width, height;
-//     wlr_output_effective_resolution(wlr_output, &width, &height);
-//
-//     glViewport(0, 0, width, height);
-//
-//     // TODO Add update function for physics?
-//     renderer_draw_frame(r, width, height);
-//
-//     wlr_render_pass_submit(pass);
-//     wlr_output_commit_state(wlr_output, &state);
-//     wlr_output_state_finish(&state);
-// }
