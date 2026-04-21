@@ -1,13 +1,10 @@
-// renderer.h
 #ifndef RENDERER_H
 #define RENDERER_H
 
 #include <stdbool.h>
 #include <GLES2/gl2.h>
 
-
-typedef struct wayterra_renderer{
-
+typedef struct wayterra_renderer {
     GLuint shader_program;
 
     GLuint tileMapTexture;
@@ -19,7 +16,7 @@ typedef struct wayterra_renderer{
     GLint uv_loc;
 
     GLint loc_renderMode;
-    
+
     GLint loc_offset;
     GLint loc_tileMap;
     GLint loc_atlas;
@@ -32,16 +29,21 @@ typedef struct wayterra_renderer{
     GLint loc_numTiles;
 
     bool shader_initialized;
-    float vertices[24]; // 6 vertices * 4 floats (x, y, u, v)
 
-    float playerX,playerY;
-    float player_vertices[24]; // same format: x, y, u, v
-
-    float logo_vertices[24]; // same format: x, y, u, v
+    float vertices[24];
+    float player_vertices[24];
+    float logo_vertices[24];
 } wayterra_renderer_t;
 
-
+/* lifecycle */
 void initialize_renderer(wayterra_renderer_t *r);
-void renderer_draw_frame(wayterra_renderer_t *r, int width, int height);
-void update_player_pos(wayterra_renderer_t *r,float dx, float dy);
+void renderer_shutdown(wayterra_renderer_t *r);
+
+/* rendering */
+void renderer_draw_frame(
+    wayterra_renderer_t *r,
+    int width,
+    int height
+);
+
 #endif

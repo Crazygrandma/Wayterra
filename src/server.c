@@ -13,9 +13,11 @@
 #include "output.h"
 #include "server.h"
 #include "input.h"
+#include "clients.h"
 
 
 void setup(wayterra_server_t *server) {
+    // Turn on logging so we can see what goes wrong
     wlr_log_init(WLR_DEBUG, NULL);
 
 
@@ -58,6 +60,18 @@ void setup(wayterra_server_t *server) {
         die("Could not create allocator");
     }
 
+	/* This creates some hands-off wlroots interfaces. The compositor is
+	 * necessary for clients to allocate surfaces, the subcompositor allows to
+	 * assign the role of subsurfaces to surfaces and the data device manager
+	 * handles the clipboard. Each of these wlroots interfaces has room for you
+	 * to dig your fingers in and play with their behavior if you want. Note that
+	 * the clients cannot set the selection directly without compositor approval,
+	 * see the handling of the request_set_selection event below.*/
+	wlr_compositor_create(server->wl_display, 5, server->renderer);
+	wlr_subcompositor_create(server->wl_display);
+	wlr_data_device_manager_create(server->wl_display);
+   
+
     /* Output layout */
     server->output_layout =
         wlr_output_layout_create(server->wl_display);
@@ -71,6 +85,8 @@ void setup(wayterra_server_t *server) {
         &server->new_output
     );
 
+
+    // Listen for new input devices such as a mouse and keyboard
 	wl_list_init(&server->keyboards);
 	server->new_input.notify = server_new_input;
 	wl_signal_add(&server->backend->events.new_input, &server->new_input);
@@ -84,6 +100,17 @@ void setup(wayterra_server_t *server) {
             server->scene,
             server->output_layout
         );
+
+	/* Set up xdg-shell version 3. The xdg-shell is a Wayland protocol which is
+	 * used for application windows. For more detail on shells, refer to
+	 * https://drewdevault.com/2018/07/29/Wayland-shells.html.
+	 */
+	wl_list_init(&server->toplevels);
+	server->xdg_shell = wlr_xdg_shell_create(server->wl_display, 3);
+	server->new_xdg_toplevel.notify = server_new_xdg_toplevel;
+	wl_signal_add(&server->xdg_shell->events.new_toplevel, &server->new_xdg_toplevel);
+	// server->new_xdg_popup.notify = server_new_xdg_popup;
+ //    wl_signal_add(&server->xdg_shell->events.new_popup, &server->new_xdg_popup);
 }
 
 void run(wayterra_server_t *server) {
@@ -110,12 +137,15 @@ void cleanup(wayterra_server_t *server) {
     /* Remove all connected clients */
     wl_display_destroy_clients(server->wl_display);
 
-	wl_list_remove(&server->new_input.link);
+	wl_list_remove(&server->new_xdg_toplevel.link);
+
+    wl_list_remove(&server->new_input.link);
 
     wl_list_remove(&server->new_output.link);
     // /* Destroy scene graph */
-    // if (server->scene)
-    //     wlr_scene_node_destroy(&server->scene->tree.node);
+    //
+    if (server->scene)
+        wlr_scene_node_destroy(&server->scene->tree.node);
 
     /* Destroy allocator */
     if (server->allocator)

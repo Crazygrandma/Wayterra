@@ -12,6 +12,10 @@
 #include "server.h"
 #include "renderer.h"
 
+
+// TODO reorder functions and place compositor logic input handling in function game logic keyboard state?
+
+
 static void wayterra_handle_keyboard_destroy(struct wl_listener *listener, void *data) {
 	/* This event is raised by the keyboard base wlr_input_device to signal
 	 * the destruction of the wlr_keyboard. It will no longer receive events
@@ -26,6 +30,8 @@ static void wayterra_handle_keyboard_destroy(struct wl_listener *listener, void 
 	free(keyboard);
 }
 
+
+// TODO use game state
 static bool handle_keybinding(wayterra_keyboard_t *keyboard, wayterra_server_t *server, xkb_keysym_t sym) {
 	/*
 	 * Here we handle compositor keybindings. This is when the compositor is
@@ -38,10 +44,6 @@ static bool handle_keybinding(wayterra_keyboard_t *keyboard, wayterra_server_t *
 	case XKB_KEY_Escape:
 		wl_display_terminate(server->wl_display);
 		break;
-    case XKB_KEY_Tab:
-        keyboard->movement_mode = !keyboard->movement_mode;
-        printf("Toggle movement mode");
-        break;
 	default:
 		return false;
 	}
@@ -63,6 +65,7 @@ void wayterra_handle_modifiers(struct wl_listener *listener, void *data) {
         &keyboard->wlr_keyboard->modifiers
     );
 }
+
 static void wayterra_handle_key(
         struct wl_listener *listener, void *data) {
     /* This event is raised when a key is pressed or released. */
@@ -97,39 +100,40 @@ static void wayterra_handle_key(
         }
     }
 
+    // TODO Call renderer input handler
     /* Movement mode: WASD without modifier */
-    if (!handled &&
-        keyboard->movement_mode &&
-        event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-
-        for (int i = 0; i < nsyms; i++) {
-            switch (syms[i]) {
-            case XKB_KEY_w:
-            case XKB_KEY_W:
-                update_player_pos(renderer, 0, -PLAYER_SPEED);
-                handled = true;
-                break;
-
-            case XKB_KEY_s:
-            case XKB_KEY_S:
-                update_player_pos(renderer, 0, PLAYER_SPEED);
-                handled = true;
-                break;
-
-            case XKB_KEY_a:
-            case XKB_KEY_A:
-                update_player_pos(renderer, -PLAYER_SPEED, 0);
-                handled = true;
-                break;
-
-            case XKB_KEY_d:
-            case XKB_KEY_D:
-                update_player_pos(renderer, PLAYER_SPEED, 0);
-                handled = true;
-                break;
-            }
-        }
-    }
+    // if (!handled &&
+    //     keyboard->movement_mode &&
+    //     event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+    //
+    //     for (int i = 0; i < nsyms; i++) {
+    //         switch (syms[i]) {
+    //         case XKB_KEY_w:
+    //         case XKB_KEY_W:
+    //             update_player_pos(renderer, 0, -PLAYER_SPEED);
+    //             handled = true;
+    //             break;
+    //
+    //         case XKB_KEY_s:
+    //         case XKB_KEY_S:
+    //             update_player_pos(renderer, 0, PLAYER_SPEED);
+    //             handled = true;
+    //             break;
+    //
+    //         case XKB_KEY_a:
+    //         case XKB_KEY_A:
+    //             update_player_pos(renderer, -PLAYER_SPEED, 0);
+    //             handled = true;
+    //             break;
+    //
+    //         case XKB_KEY_d:
+    //         case XKB_KEY_D:
+    //             update_player_pos(renderer, PLAYER_SPEED, 0);
+    //             handled = true;
+    //             break;
+    //         }
+    //     }
+    // }
 
     /* Normal compositor keybindings (only when movement mode is OFF) */
     if (!handled &&
@@ -153,36 +157,66 @@ static void wayterra_handle_key(
         );
     }
 }
-
-
 void wayterra_new_keyboard(wayterra_server_t *server,
                           struct wlr_input_device *device) {
+
+    
     struct wlr_keyboard *wlr_keyboard =
         wlr_keyboard_from_input_device(device);
 
+    if (!wlr_keyboard) {
+        printf("[keyboard] ERROR: wlr_keyboard_from_input_device returned NULL\n");
+        return;
+    }
+
     wayterra_keyboard_t *keyboard =
         calloc(1, sizeof(wayterra_keyboard_t));
+
+    if (!keyboard) {
+        printf("[keyboard] ERROR: calloc failed\n");
+        return;
+    }
+
     keyboard->server = server;
     keyboard->wlr_keyboard = wlr_keyboard;
 
-    // Disbable movement on first register
     keyboard->movement_mode = false;
+
     // --- XKB keymap setup ---
+    printf("[keyboard] creating xkb context\n");
+
     struct xkb_context *context =
         xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 
+    if (!context) {
+        printf("[keyboard] ERROR: xkb_context_new failed\n");
+        return;
+    }
+
+    // TODO change keymap to value of config.h
     struct xkb_keymap *keymap =
         xkb_keymap_new_from_names(context, NULL,
                                  XKB_KEYMAP_COMPILE_NO_FLAGS);
+
+    if (!keymap) {
+        printf("[keyboard] ERROR: xkb_keymap_new_from_names failed\n");
+        xkb_context_unref(context);
+        return;
+    }
+
+    printf("[keyboard] keymap created\n");
 
     wlr_keyboard_set_keymap(wlr_keyboard, keymap);
     xkb_keymap_unref(keymap);
     xkb_context_unref(context);
 
     // Key repeat config
+    printf("[keyboard] setting repeat info\n");
     wlr_keyboard_set_repeat_info(wlr_keyboard, 25, 600);
 
     // --- Event listeners ---
+    printf("[keyboard] setting up listeners\n");
+
     keyboard->modifiers.notify = wayterra_handle_modifiers;
     wl_signal_add(&wlr_keyboard->events.modifiers,
                   &keyboard->modifiers);
@@ -196,13 +230,20 @@ void wayterra_new_keyboard(wayterra_server_t *server,
                   &keyboard->destroy);
 
     // --- Attach to seat ---
+    printf("[keyboard] attaching to seat\n");
     wlr_seat_set_keyboard(server->seat, wlr_keyboard);
 
     // --- Store keyboard ---
+    printf("[keyboard] inserting into list\n");
     wl_list_insert(&server->keyboards, &keyboard->link);
+
+    printf("[keyboard] setup complete\n");
 }
 
+
+// TODO Fix and refactor input handling
 void server_new_input(struct wl_listener *listener, void *data) {
+    // Get pointer to the server struct for this listener 
     wayterra_server_t *server =
         wl_container_of(listener, server, new_input);
 
