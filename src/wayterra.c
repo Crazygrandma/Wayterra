@@ -9,9 +9,13 @@ int main(int argc, char *argv[])
 		die("XDG_RUNTIME_DIR must be set");
 
     wayterra_server_t server = {0};
+   
     
+    // Setup the structs and listeners
     setup(&server);
+    // Run the event loop
     run(&server);
+    // Cleanup memory we allocated
     cleanup(&server);
     return 0;
 }

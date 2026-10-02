@@ -1,9 +1,12 @@
-attribute vec2 aPos;
-attribute vec2 aUV; // must be used
-varying vec2 vUV;
-uniform vec2 uOffset;
+#version 100
 
-void main() {
+attribute vec2 aPos;
+attribute vec2 aUV;
+
+varying vec2 vUV;
+
+void main()
+{
+    gl_Position = vec4(aPos, 0.0, 1.0);
     vUV = aUV;
-    gl_Position = vec4(aPos + uOffset, 0.0, 1.0);
 }

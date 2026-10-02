@@ -9,8 +9,9 @@ wayland_server = dependency('wayland-server', required: true)
 xkbcommon = dependency('xkbcommon', required: true)
 libdrm = dependency('libdrm', required: true)
 glesv2 = dependency('glesv2', required: true)
+egl = dependency('egl', required: true)
 
-inc = include_directories('include','third_party')
+inc = include_directories('include', 'third_party')
 
 executable(
   'wayterra',
@@ -19,9 +20,17 @@ executable(
   'renderer.c',
   'server.c',
   'wayterra.c',
+  'clients.c',
   'utils/error.c',
   'utils/file_utils.c',
   'utils/gl_utils.c',
-  dependencies: [wlroots, wayland_server, xkbcommon, libdrm, glesv2],
+  dependencies: [
+    wlroots,
+    wayland_server,
+    xkbcommon,
+    libdrm,
+    glesv2,
+    egl,
+  ],
   include_directories: inc,
 )
