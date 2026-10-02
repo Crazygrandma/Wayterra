@@ -10,7 +10,6 @@
 #include <wlr/types/wlr_scene.h>
 
 #include <GLES2/gl2.h>
-typedef struct wayterra_renderer wayterra_renderer_t;
 
 
 typedef struct wayterra_output {
@@ -18,15 +17,15 @@ typedef struct wayterra_output {
     struct wlr_output *wlr_output;
 
     struct wl_listener frame;
+    struct wl_listener request_state;
+    struct wl_listener destroy;
     struct wl_list link;
 
-    wayterra_renderer_t *renderer;
+    struct wlr_buffer *gameframebuffer;
+    struct wlr_scene_buffer *game_scene_buffer;
 
-    GLuint fbo;
-    GLuint color_tex;
-    int width;
-    int height;
-    bool fbo_initialized;
+    struct wayterra_renderer *renderer;
+
 } wayterra_output_t;
 
 typedef struct wayterra_server {

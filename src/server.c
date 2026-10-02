@@ -8,7 +8,7 @@
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/log.h>
 #include <wlr/types/wlr_seat.h>
-
+#include <wlr/render/gles2.h>
 #include "error.h"
 #include "output.h"
 #include "server.h"
@@ -17,6 +17,7 @@
 
 
 void setup(wayterra_server_t *server) {
+    
     // Turn on logging so we can see what goes wrong
     wlr_log_init(WLR_DEBUG, NULL);
 
@@ -45,11 +46,13 @@ void setup(wayterra_server_t *server) {
     if (!server->renderer) {
         die("Could not create renderer");
     }
-
-    wlr_renderer_init_wl_display(
-        server->renderer,
-        server->wl_display
-    );
+    if (!wlr_renderer_is_gles2(server->renderer)) {
+        wlr_log(WLR_ERROR, "Need a GLES2 renderer for game rendering");
+        return;
+    }
+    if(!wlr_renderer_init_wl_display(server->renderer,server->wl_display)){
+        die("Could not intialise wl_shm, linux_dmabuf");
+    }
 
     /* Create allocator */
     server->allocator = wlr_allocator_autocreate(
@@ -137,13 +140,31 @@ void cleanup(wayterra_server_t *server) {
     /* Remove all connected clients */
     wl_display_destroy_clients(server->wl_display);
 
-	wl_list_remove(&server->new_xdg_toplevel.link);
-
+    wl_list_remove(&server->new_xdg_toplevel.link);
     wl_list_remove(&server->new_input.link);
-
     wl_list_remove(&server->new_output.link);
-    // /* Destroy scene graph */
-    //
+
+    /* Destroy per-output resources */
+    wayterra_output_t *output, *tmp;
+    wl_list_for_each_safe(output, tmp, &server->outputs, link) {
+        if (output->gameframebuffer) {
+            wlr_buffer_drop(output->gameframebuffer);
+            output->gameframebuffer = NULL;
+        }
+
+        /* Detach from the outputs first: the backend destroys them
+         * below, which would otherwise invoke listeners pointing at
+         * already freed memory. output_destroy() does the same when an
+         * output disappears at runtime. */
+        wl_list_remove(&output->frame.link);
+        wl_list_remove(&output->request_state.link);
+        wl_list_remove(&output->destroy.link);
+
+        wl_list_remove(&output->link);
+        free(output);
+    }
+
+    /* Destroy scene graph */
     if (server->scene)
         wlr_scene_node_destroy(&server->scene->tree.node);
 
@@ -158,9 +179,7 @@ void cleanup(wayterra_server_t *server) {
     if (server->backend)
         wlr_backend_destroy(server->backend);
 
-
-    /* Destroy display (after everything else) */
+    /* Destroy display */
     if (server->wl_display)
         wl_display_destroy(server->wl_display);
-	
 }

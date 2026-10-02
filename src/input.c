@@ -75,7 +75,6 @@ static void wayterra_handle_key(
     wayterra_output_t *output =
         wl_container_of(server->outputs.next, output, link);
 
-    wayterra_renderer_t *renderer = output->renderer;
     struct wlr_keyboard_key_event *event = data;
     struct wlr_seat *seat = server->seat;
 

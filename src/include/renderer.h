@@ -7,32 +7,16 @@
 typedef struct wayterra_renderer {
     GLuint shader_program;
 
-    GLuint tileMapTexture;
-    GLuint atlasTexture;
-    GLuint playerSpriteTexture;
-    GLuint logoSpriteTexture;
+    GLuint vbo;
+    
+    GLuint fbo;
 
     GLint pos_loc;
     GLint uv_loc;
 
-    GLint loc_renderMode;
-
-    GLint loc_offset;
-    GLint loc_tileMap;
-    GLint loc_atlas;
-    GLint loc_player;
-    GLint loc_logo;
-    GLint loc_windowWidth;
-    GLint loc_windowHeight;
-
-    GLint loc_tileMapSize;
-    GLint loc_numTiles;
-
     bool shader_initialized;
 
     float vertices[24];
-    float player_vertices[24];
-    float logo_vertices[24];
 } wayterra_renderer_t;
 
 /* lifecycle */
