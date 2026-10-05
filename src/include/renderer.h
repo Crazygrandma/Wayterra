@@ -13,9 +13,12 @@ typedef struct wayterra_renderer {
 
     GLint pos_loc;
     GLint uv_loc;
+    GLint time_loc;
+
+    float timer;
+    float last_time;
 
     bool shader_initialized;
-
     float vertices[24];
 } wayterra_renderer_t;
 

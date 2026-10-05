@@ -5,6 +5,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+static double get_time(void)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+
+    return ts.tv_sec + ts.tv_nsec / 1000000000.0;
+}
 
 static void log_gl_error(const char *where)
 {
@@ -339,6 +349,26 @@ static void init_shader(wayterra_renderer_t *r)
         return;
     }
 
+    r->time_loc = glGetUniformLocation(
+            r->shader_program,
+            "uTime"
+            );
+
+    log_gl_error("glGetUniformLocation uTime");
+
+    wlr_log(
+            WLR_DEBUG,
+            "Shader uniform: uTime=%d",
+            r->time_loc
+           );
+
+    if (r->time_loc < 0) {
+        wlr_log(
+                WLR_ERROR,
+                "uTime was not found in shader"
+               );
+        return;
+    }
     wlr_log(WLR_DEBUG, "Creating vertex buffer");
 
     glGenBuffers(1, &r->vbo);
@@ -473,6 +503,13 @@ void renderer_draw_frame(
 
     glClear(GL_COLOR_BUFFER_BIT);
 
+    double current_time = get_time();
+    double delta_time = current_time - r->last_time;
+
+    r->last_time = current_time;
+    r->timer += delta_time;
+
+
     glUseProgram(r->shader_program);
     glBindBuffer(
             GL_ARRAY_BUFFER,
@@ -481,6 +518,7 @@ void renderer_draw_frame(
     GLsizei stride = 4 * sizeof(float);
     glEnableVertexAttribArray(r->pos_loc);
 
+    glUniform1f(r->time_loc, r->timer);
 
     glVertexAttribPointer(
             r->pos_loc,
