@@ -184,64 +184,139 @@ void renderer_draw_frame(
         return;
     }
 
+    glViewport(0, 0, width, height);
 
-    glViewport( 0, 0, width, height);
-
-
-    glClearColor( 1.0f, 0.0f, 0.0f, 1.0f);
-
+    // if (r->move_left) {
+    //     glClearColor(0.0f, 0.0f, 0.25f, 1.0f);
+    // } else if (r->move_right) {
+    //     glClearColor(0.35f, 0.18f, 0.0f, 1.0f);
+    // } else {
+    //     glClearColor(0.25f, 0.0f, 0.0f, 1.0f);
+    // }
 
     glClear(GL_COLOR_BUFFER_BIT);
 
+
+    /*
+     * Calculate frame time
+     */
     double current_time = get_time();
     double delta_time = current_time - r->last_time;
 
     r->last_time = current_time;
+
+
+    /*
+     * Reverse time when moving left.
+     * Move normally when moving right.
+     */
+    if (r->move_left) {
+        delta_time = -delta_time;
+    }
+
     r->timer += delta_time;
 
 
+    /*
+     * Use shader
+     */
     glUseProgram(r->shader_program);
 
 
-    // Draw player texture
+    /*
+     * Draw player texture
+     */
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, r->playerTexture);
-    glUniform1i(r->loc_player, 0);
+
+    glBindTexture(
+            GL_TEXTURE_2D,
+            r->playerTexture
+            );
+
+    glUniform1i(
+            r->loc_player,
+            0
+            );
 
 
+    /*
+     * Vertex buffer
+     */
     glBindBuffer(
             GL_ARRAY_BUFFER,
             r->vbo
             );
+
     GLsizei stride = 4 * sizeof(float);
+
+
+    /*
+     * Position
+     */
     glEnableVertexAttribArray(r->pos_loc);
 
-    glUniform1f(r->time_loc, r->timer);
+    glVertexAttribPointer(
+            r->pos_loc,
+            2,
+            GL_FLOAT,
+            GL_FALSE,
+            stride,
+            (void *)0
+            );
 
-    glVertexAttribPointer( r->pos_loc, 2, GL_FLOAT, GL_FALSE, stride, (void *)0);
+
+    /*
+     * Time
+     */
+    glUniform1f(
+            r->time_loc,
+            r->timer
+            );
 
 
-    wlr_log( WLR_DEBUG, "Enabling UV attribute %d", r->uv_loc);
+    /*
+     * UV
+     */
+    wlr_log(
+            WLR_DEBUG,
+            "Enabling UV attribute %d",
+            r->uv_loc
+            );
 
     glEnableVertexAttribArray(r->uv_loc);
 
-    log_gl_error("glEnableVertexAttribArray uv");
+    log_gl_error(
+            "glEnableVertexAttribArray uv"
+            );
 
-    glVertexAttribPointer( r->uv_loc, 2, GL_FLOAT, GL_FALSE, stride, (void *)(2 * sizeof(float)));
+    glVertexAttribPointer(
+            r->uv_loc,
+            2,
+            GL_FLOAT,
+            GL_FALSE,
+            stride,
+            (void *)(2 * sizeof(float))
+            );
 
 
+    /*
+     * Draw
+     */
+    glDrawArrays(
+            GL_TRIANGLES,
+            0,
+            6
+            );
 
-    glDrawArrays( GL_TRIANGLES, 0, 6);
 
-
+    /*
+     * Cleanup
+     */
     glDisableVertexAttribArray(r->pos_loc);
-
     glDisableVertexAttribArray(r->uv_loc);
 
     glBindBuffer(
             GL_ARRAY_BUFFER,
             0
             );
-
-
 }

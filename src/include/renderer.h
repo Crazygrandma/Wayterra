@@ -23,6 +23,8 @@ typedef struct wayterra_renderer {
     float vertices[24];
     
     GLuint playerTexture;
+    bool move_left;
+    bool move_right
 } wayterra_renderer_t;
 
 /* lifecycle */

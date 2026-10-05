@@ -10,9 +10,9 @@
 #include "config.h"
 #include "input.h"
 #include "server.h"
+#include "renderer.h"
 
 
-// TODO reorder functions and place compositor logic input handling in function game logic keyboard state?
 
 
 static void wayterra_handle_keyboard_destroy(struct wl_listener *listener, void *data) {
@@ -74,6 +74,7 @@ static void wayterra_handle_key(
     wayterra_output_t *output =
         wl_container_of(server->outputs.next, output, link);
 
+    wayterra_renderer_t *renderer = output->renderer;
     struct wlr_keyboard_key_event *event = data;
     struct wlr_seat *seat = server->seat;
 
@@ -89,7 +90,6 @@ static void wayterra_handle_key(
     uint32_t modifiers =
         wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 
-    /* Always allow Tab toggle (so you don't get stuck in movement mode) */
     if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
         for (int i = 0; i < nsyms; i++) {
             if (syms[i] == XKB_KEY_Tab) {
@@ -98,40 +98,28 @@ static void wayterra_handle_key(
         }
     }
 
-    // TODO Call renderer input handler
-    /* Movement mode: WASD without modifier */
-    // if (!handled &&
-    //     keyboard->movement_mode &&
-    //     event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-    //
-    //     for (int i = 0; i < nsyms; i++) {
-    //         switch (syms[i]) {
-    //         case XKB_KEY_w:
-    //         case XKB_KEY_W:
-    //             update_player_pos(renderer, 0, -PLAYER_SPEED);
-    //             handled = true;
-    //             break;
-    //
-    //         case XKB_KEY_s:
-    //         case XKB_KEY_S:
-    //             update_player_pos(renderer, 0, PLAYER_SPEED);
-    //             handled = true;
-    //             break;
-    //
-    //         case XKB_KEY_a:
-    //         case XKB_KEY_A:
-    //             update_player_pos(renderer, -PLAYER_SPEED, 0);
-    //             handled = true;
-    //             break;
-    //
-    //         case XKB_KEY_d:
-    //         case XKB_KEY_D:
-    //             update_player_pos(renderer, PLAYER_SPEED, 0);
-    //             handled = true;
-    //             break;
-    //         }
-    //     }
-    // }
+    if (!handled && event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+
+        for (int i = 0; i < nsyms; i++) {
+            switch (syms[i]) {
+            case XKB_KEY_a:
+            case XKB_KEY_A:
+                renderer->move_left = true;
+                renderer->move_right = false;
+                printf("Move left");
+                // handled = true;
+                break;
+
+            case XKB_KEY_d:
+            case XKB_KEY_D:
+                renderer->move_left = false;
+                renderer->move_right = true;
+                printf("Move right");
+                // handled = true;
+                break;
+            }
+        }
+    }
 
     /* Normal compositor keybindings (only when movement mode is OFF) */
     if (!handled &&
