@@ -10,7 +10,6 @@
 #include "config.h"
 #include "input.h"
 #include "server.h"
-#include "renderer.h"
 
 
 // TODO reorder functions and place compositor logic input handling in function game logic keyboard state?

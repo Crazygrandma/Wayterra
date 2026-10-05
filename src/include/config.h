@@ -17,6 +17,6 @@
 // Edit to change the modifier key 
 // WlR_MODIFIER_LOGO = Windows key
 // WLR_MODIFIER_Alt = Alt key
-#define MODIFIER_KEY WLR_MODIFIER_LOGO
+#define MODIFIER_KEY WLR_MODIFIER_ALT
 #define USER_KEYMAP "de"
 #endif

@@ -24,6 +24,7 @@ executable(
   'utils/error.c',
   'utils/file_utils.c',
   'utils/gl_utils.c',
+  'utils/renderer_utils.c',
   dependencies: [
     wlroots,
     wayland_server,

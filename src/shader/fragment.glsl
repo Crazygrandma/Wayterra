@@ -4,34 +4,37 @@ precision mediump float;
 
 varying vec2 vUV;
 
+uniform sampler2D playerTexture;
 uniform float uTime;
 
 void main()
 {
-    vec2 uv = vUV * 12.0;
+    // Player size
+    vec2 size = vec2(0.4);
 
-    vec2 tile = floor(uv);
-    vec2 local = fract(uv);
+    // Movement speed
+    vec2 speed = vec2(0.20, 0.18);
 
-    float wave =
-        sin(tile.x * 1.7 + uTime)
-        * sin(tile.y * 1.3 + uTime * 0.7);
+    // Position over time
+    vec2 position = speed * uTime;
 
-    float edge =
-        step(0.05, local.x)
-        * step(0.05, local.y)
-        * step(local.x, 0.95)
-        * step(local.y, 0.95);
+    // Bounce between the edges
+    position = abs(fract(position) * 2.0 - 1.0);
 
-    float value = wave * 0.5 + 0.5;
+    // Keep the sprite inside the screen
+    position = position * (1.0 - size) + size * 0.5;
 
-    vec3 color = mix(
-        vec3(0.05, 0.08, 0.12),
-        vec3(0.15, 0.5, 0.8),
-        value
-    );
+    // Convert screen UV into player texture UV
+    vec2 playerUV = (vUV - position) / size + 0.5;
 
-    color *= edge;
-
-    gl_FragColor = vec4(color, 1.0);
+    if (
+        playerUV.x >= 0.0 &&
+        playerUV.x <= 1.0 &&
+        playerUV.y >= 0.0 &&
+        playerUV.y <= 1.0
+    ) {
+        gl_FragColor = texture2D(playerTexture, playerUV);
+    } else {
+        gl_FragColor = vec4(0.05, 0.08, 0.12, 1.0);
+    }
 }

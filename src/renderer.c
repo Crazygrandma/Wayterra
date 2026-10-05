@@ -1,9 +1,7 @@
 #include "renderer.h"
-#include "file_utils.h"
+#include "renderer_utils.h"
 #include "gl_utils.h"
 #include <wlr/util/log.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -16,314 +14,43 @@ static double get_time(void)
     return ts.tv_sec + ts.tv_nsec / 1000000000.0;
 }
 
-static void log_gl_error(const char *where)
-{
-    GLenum err;
-
-    while ((err = glGetError()) != GL_NO_ERROR) {
-        wlr_log(
-            WLR_ERROR,
-            "OpenGL error at %s: 0x%x",
-            where,
-            err
-        );
-    }
-}
-
-static void log_shader_info(GLuint shader, const char *name)
-{
-    GLint length = 0;
-
-    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
-
-    if (length > 1) {
-        char *log = calloc(1, length);
-
-        if (log) {
-            glGetShaderInfoLog(
-                shader,
-                length,
-                NULL,
-                log
-            );
-
-            wlr_log(
-                WLR_ERROR,
-                "%s shader log:\n%s",
-                name,
-                log
-            );
-
-            free(log);
-        }
-    }
-}
-
-static void log_program_info(GLuint program)
-{
-    GLint length = 0;
-
-    glGetProgramiv(
-        program,
-        GL_INFO_LOG_LENGTH,
-        &length
-    );
-
-    if (length > 1) {
-        char *log = calloc(1, length);
-
-        if (log) {
-            glGetProgramInfoLog(
-                program,
-                length,
-                NULL,
-                log
-            );
-
-            wlr_log(
-                WLR_ERROR,
-                "Program log:\n%s",
-                log
-            );
-
-            free(log);
-        }
-    }
-}
-
-
-GLuint create_shader_program_from_files(
-    const char *vertex_path,
-    const char *fragment_path)
-{
-    wlr_log(
-        WLR_DEBUG,
-        "Loading vertex shader: %s",
-        vertex_path
-    );
-
-    char *vs_src = load_file(vertex_path);
-
-    if (!vs_src) {
-        wlr_log(
-            WLR_ERROR,
-            "Failed to load vertex shader: %s",
-            vertex_path
-        );
-        return 0;
-    }
-
-    wlr_log(
-        WLR_DEBUG,
-        "Loading fragment shader: %s",
-        fragment_path
-    );
-
-    char *fs_src = load_file(fragment_path);
-
-    if (!fs_src) {
-        wlr_log(
-            WLR_ERROR,
-            "Failed to load fragment shader: %s",
-            fragment_path
-        );
-
-        free(vs_src);
-        return 0;
-    }
-
-    wlr_log(WLR_DEBUG, "Compiling vertex shader");
-
-    GLuint vs = compile_shader(
-        GL_VERTEX_SHADER,
-        vs_src
-    );
-
-    log_gl_error("compile vertex shader");
-
-    if (!vs) {
-        wlr_log(
-            WLR_ERROR,
-            "Vertex shader compilation failed"
-        );
-
-        free(vs_src);
-        free(fs_src);
-        return 0;
-    }
-
-    log_shader_info(vs, "Vertex");
-
-    wlr_log(WLR_DEBUG, "Compiling fragment shader");
-
-    GLuint fs = compile_shader(
-        GL_FRAGMENT_SHADER,
-        fs_src
-    );
-
-    log_gl_error("compile fragment shader");
-
-    if (!fs) {
-        wlr_log(
-            WLR_ERROR,
-            "Fragment shader compilation failed"
-        );
-
-        glDeleteShader(vs);
-
-        free(vs_src);
-        free(fs_src);
-
-        return 0;
-    }
-
-    log_shader_info(fs, "Fragment");
-
-    free(vs_src);
-    free(fs_src);
-
-    wlr_log(WLR_DEBUG, "Creating shader program");
-
-    GLuint program = glCreateProgram();
-
-    log_gl_error("glCreateProgram");
-
-    if (!program) {
-        wlr_log(
-            WLR_ERROR,
-            "glCreateProgram returned 0"
-        );
-
-        glDeleteShader(vs);
-        glDeleteShader(fs);
-
-        return 0;
-    }
-
-    glAttachShader(program, vs);
-    log_gl_error("glAttachShader vertex");
-
-    glAttachShader(program, fs);
-    log_gl_error("glAttachShader fragment");
-
-    /*
-     * IMPORTANT:
-     *
-     * If you want to explicitly assign locations, this must happen
-     * BEFORE glLinkProgram().
-     *
-     * For now we're not doing that because we use
-     * glGetAttribLocation() below.
-     */
-
-    wlr_log(WLR_DEBUG, "Linking shader program");
-
-    glLinkProgram(program);
-
-    log_gl_error("glLinkProgram");
-
-    GLint success = GL_FALSE;
-
-    glGetProgramiv(
-        program,
-        GL_LINK_STATUS,
-        &success
-    );
-
-    log_gl_error("glGetProgramiv GL_LINK_STATUS");
-
-    log_program_info(program);
-
-    if (!success) {
-        wlr_log(
-            WLR_ERROR,
-            "Shader program linking failed"
-        );
-
-        glDeleteProgram(program);
-        glDeleteShader(vs);
-        glDeleteShader(fs);
-
-        return 0;
-    }
-
-    wlr_log(
-        WLR_DEBUG,
-        "Shader program linked successfully: %u",
-        program
-    );
-
-    /*
-     * Shaders can be deleted after successful linking.
-     */
-    glDeleteShader(vs);
-    log_gl_error("glDeleteShader vertex");
-
-    glDeleteShader(fs);
-    log_gl_error("glDeleteShader fragment");
-
-    return program;
-}
-
 
 static void init_shader(wayterra_renderer_t *r)
 {
+
     wlr_log(WLR_DEBUG, "Initializing renderer shader");
 
     static const float vertices[24] = {
-        // position        // UV
-        -1.0f, -1.0f,       0.0f, 0.0f,
-         1.0f, -1.0f,       1.0f, 0.0f,
-         1.0f,  1.0f,       1.0f, 1.0f,
+        // Position       // UV
+        -1.0f, -1.0f,     0.0f, 0.0f,
+         1.0f, -1.0f,     1.0f, 0.0f,
+         1.0f,  1.0f,     1.0f, 1.0f,
 
-        -1.0f, -1.0f,       0.0f, 0.0f,
-         1.0f,  1.0f,       1.0f, 1.0f,
-        -1.0f,  1.0f,       0.0f, 1.0f,
+        -1.0f, -1.0f,     0.0f, 0.0f,
+         1.0f,  1.0f,     1.0f, 1.0f,
+        -1.0f,  1.0f,     0.0f, 1.0f,
     };
 
-    memcpy(
-        r->vertices,
-        vertices,
-        sizeof(vertices)
-    );
+    memcpy(r->vertices, vertices, sizeof(vertices));
 
-    wlr_log(
-        WLR_DEBUG,
-        "Creating shader program"
-    );
+    wlr_log(WLR_DEBUG, "Creating shader program");
 
-    r->shader_program =
-        create_shader_program_from_files(
-            "shader/vertex.glsl",
-            "shader/fragment.glsl"
-        );
+    r->shader_program = create_shader_program_from_files(
+        "shader/vertex.glsl",
+        "shader/fragment.glsl"
+    );
 
     if (!r->shader_program) {
-        wlr_log(
-            WLR_ERROR,
-            "Failed to create shader program"
-        );
+        wlr_log(WLR_ERROR, "Failed to create shader program");
         return;
     }
 
-    wlr_log(
-        WLR_DEBUG,
-        "Shader program: %u",
-        r->shader_program
-    );
+    wlr_log(WLR_DEBUG, "Shader program: %u", r->shader_program);
 
-    r->pos_loc = glGetAttribLocation(
-        r->shader_program,
-        "aPos"
-    );
-
+    r->pos_loc = glGetAttribLocation(r->shader_program, "aPos");
     log_gl_error("glGetAttribLocation aPos");
 
-    r->uv_loc = glGetAttribLocation(
-        r->shader_program,
-        "aUV"
-    );
-
+    r->uv_loc = glGetAttribLocation(r->shader_program, "aUV");
     log_gl_error("glGetAttribLocation aUV");
 
     wlr_log(
@@ -334,58 +61,35 @@ static void init_shader(wayterra_renderer_t *r)
     );
 
     if (r->pos_loc < 0) {
-        wlr_log(
-            WLR_ERROR,
-            "aPos was not found in shader"
-        );
+        wlr_log(WLR_ERROR, "aPos was not found in shader");
         return;
     }
 
     if (r->uv_loc < 0) {
-        wlr_log(
-            WLR_ERROR,
-            "aUV was not found in shader"
-        );
+        wlr_log(WLR_ERROR, "aUV was not found in shader");
         return;
     }
 
-    r->time_loc = glGetUniformLocation(
-            r->shader_program,
-            "uTime"
-            );
-
-    log_gl_error("glGetUniformLocation uTime");
-
-    wlr_log(
-            WLR_DEBUG,
-            "Shader uniform: uTime=%d",
-            r->time_loc
-           );
+    r->time_loc = glGetUniformLocation(r->shader_program, "uTime");
 
     if (r->time_loc < 0) {
-        wlr_log(
-                WLR_ERROR,
-                "uTime was not found in shader"
-               );
+        wlr_log(WLR_ERROR, "uTime was not found in shader");
         return;
     }
+
+    r->loc_player = glGetUniformLocation(
+        r->shader_program,
+        "playerTexture"
+    );
+
     wlr_log(WLR_DEBUG, "Creating vertex buffer");
 
     glGenBuffers(1, &r->vbo);
-
     log_gl_error("glGenBuffers");
 
-    wlr_log(
-        WLR_DEBUG,
-        "Created VBO: %u",
-        r->vbo
-    );
+    wlr_log(WLR_DEBUG, "Created VBO: %u", r->vbo);
 
-    glBindBuffer(
-        GL_ARRAY_BUFFER,
-        r->vbo
-    );
-
+    glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
     log_gl_error("glBindBuffer GL_ARRAY_BUFFER");
 
     glBufferData(
@@ -397,17 +101,10 @@ static void init_shader(wayterra_renderer_t *r)
 
     log_gl_error("glBufferData");
 
-    glBindBuffer(
-        GL_ARRAY_BUFFER,
-        0
-    );
-
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     log_gl_error("glBindBuffer 0");
 
-    wlr_log(
-        WLR_DEBUG,
-        "Shader initialization successful"
-    );
+    wlr_log(WLR_DEBUG, "Shader initialization successful");
 }
 
 
@@ -416,6 +113,9 @@ void initialize_renderer(wayterra_renderer_t *r)
     wlr_log(WLR_DEBUG, "initialize_renderer()");
 
     init_shader(r);
+
+    // r->playerTexture = load_texture("assets/player.png");
+    r->playerTexture = load_texture("assets/back.png");
 
     if (!r->shader_program ||
         r->pos_loc < 0 ||
@@ -485,20 +185,10 @@ void renderer_draw_frame(
     }
 
 
-    glViewport(
-            0,
-            0,
-            width,
-            height
-            );
+    glViewport( 0, 0, width, height);
 
 
-    glClearColor(
-            1.0f,
-            0.0f,
-            0.0f,
-            1.0f
-            );
+    glClearColor( 1.0f, 0.0f, 0.0f, 1.0f);
 
 
     glClear(GL_COLOR_BUFFER_BIT);
@@ -511,6 +201,14 @@ void renderer_draw_frame(
 
 
     glUseProgram(r->shader_program);
+
+
+    // Draw player texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, r->playerTexture);
+    glUniform1i(r->loc_player, 0);
+
+
     glBindBuffer(
             GL_ARRAY_BUFFER,
             r->vbo
@@ -520,42 +218,20 @@ void renderer_draw_frame(
 
     glUniform1f(r->time_loc, r->timer);
 
-    glVertexAttribPointer(
-            r->pos_loc,
-            2,
-            GL_FLOAT,
-            GL_FALSE,
-            stride,
-            (void *)0
-            );
+    glVertexAttribPointer( r->pos_loc, 2, GL_FLOAT, GL_FALSE, stride, (void *)0);
 
 
-    wlr_log(
-            WLR_DEBUG,
-            "Enabling UV attribute %d",
-            r->uv_loc
-           );
+    wlr_log( WLR_DEBUG, "Enabling UV attribute %d", r->uv_loc);
 
     glEnableVertexAttribArray(r->uv_loc);
 
     log_gl_error("glEnableVertexAttribArray uv");
 
-    glVertexAttribPointer(
-            r->uv_loc,
-            2,
-            GL_FLOAT,
-            GL_FALSE,
-            stride,
-            (void *)(2 * sizeof(float))
-            );
+    glVertexAttribPointer( r->uv_loc, 2, GL_FLOAT, GL_FALSE, stride, (void *)(2 * sizeof(float)));
 
 
 
-    glDrawArrays(
-            GL_TRIANGLES,
-            0,
-            6
-            );
+    glDrawArrays( GL_TRIANGLES, 0, 6);
 
 
     glDisableVertexAttribArray(r->pos_loc);
