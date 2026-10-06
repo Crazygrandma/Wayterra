@@ -48,27 +48,14 @@ static void init_shader(wayterra_renderer_t *r)
     wlr_log(WLR_DEBUG, "Shader program: %u", r->shader_program);
 
     r->pos_loc = glGetAttribLocation(r->shader_program, "aPos");
-    log_gl_error("glGetAttribLocation aPos");
-
     r->uv_loc = glGetAttribLocation(r->shader_program, "aUV");
-    log_gl_error("glGetAttribLocation aUV");
+    r->time_loc = glGetUniformLocation(r->shader_program, "uTime");
+
+    r->loc_texture = glGetUniformLocation( r->shader_program, "spriteTexture");
 
 
-    if (r->pos_loc < 0) {
-        wlr_log(WLR_ERROR, "aPos was not found in shader");
-        return;
-    }
+    r->loc_animate = glGetUniformLocation( r->shader_program, "uAnimate");
 
-    if (r->uv_loc < 0) {
-        wlr_log(WLR_ERROR, "aUV was not found in shader");
-        return;
-    }
-
-
-    r->loc_player = glGetUniformLocation(
-        r->shader_program,
-        "playerTexture"
-    );
 
     wlr_log(WLR_DEBUG, "Creating vertex buffer");
 
@@ -153,22 +140,30 @@ static void setup_vertex_attributes(wayterra_renderer_t *r)
 
 static void drawBackground(wayterra_renderer_t *r)
 {
+    glDisable(GL_BLEND);
+    
+    glUniform1i(r->loc_animate, 0);
+    
     glActiveTexture(GL_TEXTURE0);
 
     glBindTexture( GL_TEXTURE_2D, r->backgroundTexture);
 
-    glUniform1i( r->loc_player, 0);
+    glUniform1i( r->loc_texture, 0);
 
     glDrawArrays( GL_TRIANGLES, 0, 6);
 }
 
 static void drawPlayer(wayterra_renderer_t *r)
 {
+    glEnable(GL_BLEND);
+    
+    glUniform1i(r->loc_animate, 1);
+   
     glActiveTexture(GL_TEXTURE0);
 
     glBindTexture( GL_TEXTURE_2D, r->playerTexture);
 
-    glUniform1i( r->loc_player, 0);
+    glUniform1i( r->loc_texture, 0);
 
     glDrawArrays( GL_TRIANGLES, 0, 6);
 }
@@ -192,10 +187,27 @@ void renderer_draw_frame(
 
     glViewport( 0, 0, width, height);
 
-    /* Clear framebuffer */
-    // glClearColor( 1.0f, 0.0f, 1.0f, 1.0f);
-    //
-    // glClear(GL_COLOR_BUFFER_BIT);
+
+    // GAME LOGIC
+
+    /* Calculate frame time */
+    double current_time = get_time();
+    double delta_time = current_time - r->last_time;
+
+    r->last_time = current_time;
+
+
+    /*
+     * Reverse time when moving left.
+     * Move normally when moving right.
+     */
+    if (r->move_left) {
+        delta_time = -delta_time;
+    }
+
+    r->timer += delta_time;
+
+
 
     /* Use shader */
     glUseProgram(r->shader_program);
@@ -208,6 +220,11 @@ void renderer_draw_frame(
 
     /* Draw player on top */
     drawPlayer(r);
+
+    /* Time */
+    glUniform1f( r->time_loc, r->timer);
+
+
 
     /* Cleanup */
     glDisableVertexAttribArray(r->pos_loc);

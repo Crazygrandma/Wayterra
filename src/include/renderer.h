@@ -14,7 +14,8 @@ typedef struct wayterra_renderer {
     GLint pos_loc;
     GLint uv_loc;
     GLint time_loc;
-    GLint loc_player;
+    GLint loc_texture;
+    GLint loc_animate;
 
     float timer;
     float last_time;
