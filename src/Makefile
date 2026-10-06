@@ -1,18 +1,16 @@
-PKG_CONFIG?=pkg-config
+.PHONY: all setup build clean run
 
-PKGS="wlroots-0.20" wayland-server xkbcommon
-CFLAGS_PKG_CONFIG!=$(PKG_CONFIG) --cflags $(PKGS)
-CFLAGS+=$(CFLAGS_PKG_CONFIG)
-LIBS!=$(PKG_CONFIG) --libs $(PKGS)
+all: build
 
-all: tinywl
+setup:
+	meson setup build
 
-tinywl.o: tinywl.c
-	$(CC) -c $< -g -Werror $(CFLAGS) -I. -DWLR_USE_UNSTABLE -o $@
-tinywl: tinywl.o
-	$(CC) $^ -g -Werror $(CFLAGS) $(LDFLAGS) $(LIBS) -o $@
+build:
+	meson setup build --reconfigure
+	ninja -C build
+
+run: build
+	./build/wayterra
 
 clean:
-	rm -f tinywl tinywl.o
-
-.PHONY: all clean
+	rm -rf build

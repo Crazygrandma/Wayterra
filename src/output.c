@@ -272,10 +272,6 @@ void server_new_output(struct wl_listener *listener, void *data) {
     wlr_scene_node_lower_to_bottom(&output->game_scene_buffer->node);
     output_layout_to_scene(output);
 
-    /* No GL here: the context is not current at this point (and never is
-     * outside wlroots' own calls). All drawing happens in output_frame(),
-     * where we borrow the context first. The FBO is created lazily and
-     * re-fetched every frame by wlr_gles2_renderer_get_buffer_fbo(). */
 }
 
 void output_frame(struct wl_listener *listener, void *data) {
@@ -284,17 +280,6 @@ void output_frame(struct wl_listener *listener, void *data) {
 
     struct wayterra_server *server = output->server;
 
-    /*
-     * ------------------------------------------------------------
-     * 0. Keep the game buffer at the output's current resolution
-     *
-     * wlr_output->width / ->height are the pixels the output is
-     * actually driven at (the same values wlroots sizes its own
-     * swapchain buffers to). They change when the backend requests a
-     * new state - on the Wayland backend, when the nested window is
-     * resized. This reallocates only when they differ.
-     * ------------------------------------------------------------
-     */
     output_ensure_game_buffer(output);
     output_layout_to_scene(output);
 
@@ -334,7 +319,6 @@ void output_frame(struct wl_listener *listener, void *data) {
             wlr_log(WLR_ERROR, "Game FBO is incomplete: 0x%x", status);
         } else {
 
-            /* Fullscreen: viewport = the whole game buffer */
             renderer_draw_frame(output->renderer, game->width, game->height);
         }
 
@@ -343,21 +327,10 @@ void output_frame(struct wl_listener *listener, void *data) {
             wlr_log(WLR_ERROR, "Game rendering failed: 0x%x", err);
         }
 
-        glFlush();
+        // glFlush();
+        glFinish();
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 3. Tell the scene that the buffer contents changed
-     *
-     * wlroots only re-renders damaged regions, and it cannot know we
-     * wrote into the buffer behind its back. This damages the whole
-     * node and drops the cached texture (so a CPU/shm buffer is
-     * re-uploaded from our new pixels). NULL damage = whole buffer.
-     * It also schedules the next frame event, which keeps the game
-     * loop running.
-     * ------------------------------------------------------------
-     */
     if (output->game_scene_buffer != NULL && output->gameframebuffer != NULL) {
         wlr_scene_buffer_set_buffer_with_damage(
             output->game_scene_buffer,
@@ -366,21 +339,8 @@ void output_frame(struct wl_listener *listener, void *data) {
         );
     }
 
-    /* Hand the context back before wlroots runs its own render pass */
     output_gl_end(server, prev_ctx);
 
-    /*
-     * ------------------------------------------------------------
-     * 4. Composite the scene and report the frame done
-     *
-     * This takes our game framebuffer, client surfaces, etc. and
-     * renders them into the actual output buffer.
-     *
-     * This block must not be skipped: without a commit nothing is
-     * presented and no new frame events get scheduled, so the screen
-     * freezes. Errors are logged instead of bailing out.
-     * ------------------------------------------------------------
-     */
     struct wlr_scene_output *scene_output =
         wlr_scene_get_scene_output(
             server->scene,

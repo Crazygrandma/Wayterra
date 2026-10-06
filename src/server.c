@@ -16,84 +16,97 @@
 #include "clients.h"
 
 
-void setup(wayterra_server_t *server) {
-    
-    // Turn on logging so we can see what goes wrong
-    wlr_log_init(WLR_DEBUG, NULL);
+void setup(wayterra_server_t *server)
+{
+    /* Logging */
+    wlr_log_init(WLR_INFO, NULL);
 
-
-    /* Create Wayland display */
+    /* Wayland display */
     server->wl_display = wl_display_create();
     if (!server->wl_display) {
         die("Could not create display");
     }
 
-    /* Store the event loop */
     server->event_loop =
         wl_display_get_event_loop(server->wl_display);
 
-    /* Create backend */
-    server->backend = wlr_backend_autocreate(
-        server->event_loop,
-        NULL
-    );
+    /* Backend */
+    server->backend =
+        wlr_backend_autocreate(server->event_loop, NULL);
     if (!server->backend) {
         die("Could not create backend");
     }
 
-    /* Create renderer */
-    server->renderer = wlr_renderer_autocreate(server->backend);
+    /* Renderer */
+    server->renderer =
+        wlr_renderer_autocreate(server->backend);
     if (!server->renderer) {
         die("Could not create renderer");
     }
+
     if (!wlr_renderer_is_gles2(server->renderer)) {
-        wlr_log(WLR_ERROR, "Need a GLES2 renderer for game rendering");
+        wlr_log(WLR_ERROR,
+            "Need a GLES2 renderer for game rendering");
         return;
     }
-    if(!wlr_renderer_init_wl_display(server->renderer,server->wl_display)){
-        die("Could not intialise wl_shm, linux_dmabuf");
+
+    if (!wlr_renderer_init_wl_display(
+            server->renderer,
+            server->wl_display)) {
+        die("Could not initialise wl_shm, linux_dmabuf");
     }
 
-    /* Create allocator */
-    server->allocator = wlr_allocator_autocreate(
-        server->backend,
-        server->renderer
-    );
+    /* Allocator */
+    server->allocator =
+        wlr_allocator_autocreate(
+            server->backend,
+            server->renderer
+        );
+
     if (!server->allocator) {
         die("Could not create allocator");
     }
 
-	/* This creates some hands-off wlroots interfaces. The compositor is
-	 * necessary for clients to allocate surfaces, the subcompositor allows to
-	 * assign the role of subsurfaces to surfaces and the data device manager
-	 * handles the clipboard. Each of these wlroots interfaces has room for you
-	 * to dig your fingers in and play with their behavior if you want. Note that
-	 * the clients cannot set the selection directly without compositor approval,
-	 * see the handling of the request_set_selection event below.*/
-	wlr_compositor_create(server->wl_display, 5, server->renderer);
-	wlr_subcompositor_create(server->wl_display);
-	wlr_data_device_manager_create(server->wl_display);
-   
+    /* Wayland globals */
+    wlr_compositor_create(
+        server->wl_display,
+        5,
+        server->renderer
+    );
 
-    /* Output layout */
+    wlr_subcompositor_create(server->wl_display);
+    wlr_data_device_manager_create(server->wl_display);
+
+
+    
+    /* Output */
     server->output_layout =
         wlr_output_layout_create(server->wl_display);
 
     wl_list_init(&server->outputs);
 
-    /* Listen for new outputs */
     server->new_output.notify = server_new_output;
+
     wl_signal_add(
         &server->backend->events.new_output,
         &server->new_output
     );
 
+    
+    /* Input */
+    wl_list_init(&server->keyboards);
 
-    // Listen for new input devices such as a mouse and keyboard
-	wl_list_init(&server->keyboards);
-	server->new_input.notify = server_new_input;
-	wl_signal_add(&server->backend->events.new_input, &server->new_input);
-    server->seat = wlr_seat_create(server->wl_display, "seat0");
+    server->new_input.notify = server_new_input;
+
+    wl_signal_add(
+        &server->backend->events.new_input,
+        &server->new_input
+    );
+
+    server->seat =
+        wlr_seat_create(server->wl_display, "seat0");
+
+
 
     /* Scene graph */
     server->scene = wlr_scene_create();
@@ -104,16 +117,21 @@ void setup(wayterra_server_t *server) {
             server->output_layout
         );
 
-	/* Set up xdg-shell version 3. The xdg-shell is a Wayland protocol which is
-	 * used for application windows. For more detail on shells, refer to
-	 * https://drewdevault.com/2018/07/29/Wayland-shells.html.
-	 */
-	wl_list_init(&server->toplevels);
-	server->xdg_shell = wlr_xdg_shell_create(server->wl_display, 3);
-	server->new_xdg_toplevel.notify = server_new_xdg_toplevel;
-	wl_signal_add(&server->xdg_shell->events.new_toplevel, &server->new_xdg_toplevel);
-	// server->new_xdg_popup.notify = server_new_xdg_popup;
- //    wl_signal_add(&server->xdg_shell->events.new_popup, &server->new_xdg_popup);
+
+
+    /* XDG shell */
+    wl_list_init(&server->toplevels);
+
+    server->xdg_shell =
+        wlr_xdg_shell_create(server->wl_display, 3);
+
+    server->new_xdg_toplevel.notify =
+        server_new_xdg_toplevel;
+
+    wl_signal_add(
+        &server->xdg_shell->events.new_toplevel,
+        &server->new_xdg_toplevel
+    );
 }
 
 void run(wayterra_server_t *server) {
