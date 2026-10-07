@@ -117,8 +117,8 @@ void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	// /* cotd */
 	toplevel->request_move.notify = xdg_toplevel_request_move;
 	wl_signal_add(&xdg_toplevel->events.request_move, &toplevel->request_move);
-	// toplevel->request_resize.notify = xdg_toplevel_request_resize;
-	// wl_signal_add(&xdg_toplevel->events.request_resize, &toplevel->request_resize);
+	toplevel->request_resize.notify = xdg_toplevel_request_resize;
+	wl_signal_add(&xdg_toplevel->events.request_resize, &toplevel->request_resize);
 	// toplevel->request_maximize.notify = xdg_toplevel_request_maximize;
 	// wl_signal_add(&xdg_toplevel->events.request_maximize, &toplevel->request_maximize);
 	// toplevel->request_fullscreen.notify = xdg_toplevel_request_fullscreen;
@@ -165,6 +165,17 @@ void xdg_toplevel_request_move( struct wl_listener *listener, void *data) {
 	begin_interactive(toplevel, WAYTERRA_CURSOR_MOVE, 0);
 }
 
+void xdg_toplevel_request_resize( struct wl_listener *listener, void *data) {
+	/* This event is raised when a client would like to begin an interactive
+	 * resize, typically because the user clicked on their client-side
+	 * decorations. Note that a more sophisticated compositor should check the
+	 * provided serial against a list of button press serials sent to this
+	 * client, to prevent the client from requesting this whenever they want. */
+	struct wlr_xdg_toplevel_resize_event *event = data;
+	struct wayterra_toplevel *toplevel = wl_container_of(listener, toplevel, request_resize);
+	begin_interactive(toplevel, WAYTERRA_CURSOR_RESIZE, event->edges);
+}
+
 void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	/* Called when the xdg_toplevel is destroyed. */
 	struct wayterra_toplevel *toplevel = wl_container_of(listener, toplevel, destroy);
@@ -174,7 +185,7 @@ void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel->commit.link);
 	wl_list_remove(&toplevel->destroy.link);
 	wl_list_remove(&toplevel->request_move.link);
-	// wl_list_remove(&toplevel->request_resize.link);
+	wl_list_remove(&toplevel->request_resize.link);
 	// wl_list_remove(&toplevel->request_maximize.link);
 	// wl_list_remove(&toplevel->request_fullscreen.link);
 

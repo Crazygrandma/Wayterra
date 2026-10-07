@@ -32,5 +32,5 @@ void server_cursor_motion(struct wl_listener *listener, void *data);
 void process_cursor_motion(wayterra_server_t *server, uint32_t time);
 void wayterra_handle_modifiers(struct wl_listener *listener, void *data);
 void server_new_input(struct wl_listener *listener, void *data);
-
+void process_cursor_resize(wayterra_server_t *server);
 #endif /* WAYTERRA_INPUT_H */
