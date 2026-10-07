@@ -1,14 +1,15 @@
 #include "clients.h"
 #include <wayland-util.h>
 #include "server.h"
+#include <stdio.h>   // printf()
+#include <stdint.h>  // uint32_t
 #include <stdlib.h>
 
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_scene.h>
 
-// TODO split toplevel, popup into files
 
-static void focus_toplevel(struct wayterra_toplevel *toplevel) {
+void focus_toplevel(struct wayterra_toplevel *toplevel) {
 	/* Note: this function only deals with keyboard focus. */
 	if (toplevel == NULL) {
 		return;
@@ -114,8 +115,8 @@ void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	wl_signal_add(&xdg_toplevel->events.destroy, &toplevel->destroy);
 	//
 	// /* cotd */
-	// toplevel->request_move.notify = xdg_toplevel_request_move;
-	// wl_signal_add(&xdg_toplevel->events.request_move, &toplevel->request_move);
+	toplevel->request_move.notify = xdg_toplevel_request_move;
+	wl_signal_add(&xdg_toplevel->events.request_move, &toplevel->request_move);
 	// toplevel->request_resize.notify = xdg_toplevel_request_resize;
 	// wl_signal_add(&xdg_toplevel->events.request_resize, &toplevel->request_resize);
 	// toplevel->request_maximize.notify = xdg_toplevel_request_maximize;
@@ -124,6 +125,45 @@ void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	// wl_signal_add(&xdg_toplevel->events.request_fullscreen, &toplevel->request_fullscreen);
 }
 
+static void begin_interactive(struct wayterra_toplevel *toplevel,
+		enum wayterra_cursor_mode mode, uint32_t edges) {
+	/* This function sets up an interactive move or resize operation, where the
+	 * compositor stops propegating pointer events to clients and instead
+	 * consumes them itself, to move or resize windows. */
+	wayterra_server_t *server = toplevel->server;
+
+	server->grabbed_toplevel = toplevel;
+	server->cursor_mode = mode;
+
+	if (mode == WAYTERRA_CURSOR_MOVE) {
+		server->grab_x = server->cursor->x - toplevel->scene_tree->node.x;
+		server->grab_y = server->cursor->y - toplevel->scene_tree->node.y;
+	} else {
+		struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
+
+		double border_x = (toplevel->scene_tree->node.x + geo_box->x) +
+			((edges & WLR_EDGE_RIGHT) ? geo_box->width : 0);
+		double border_y = (toplevel->scene_tree->node.y + geo_box->y) +
+			((edges & WLR_EDGE_BOTTOM) ? geo_box->height : 0);
+		server->grab_x = server->cursor->x - border_x;
+		server->grab_y = server->cursor->y - border_y;
+
+		server->grab_geobox = *geo_box;
+		server->grab_geobox.x += toplevel->scene_tree->node.x;
+		server->grab_geobox.y += toplevel->scene_tree->node.y;
+
+		server->resize_edges = edges;
+	}
+}
+void xdg_toplevel_request_move( struct wl_listener *listener, void *data) {
+	/* This event is raised when a client would like to begin an interactive
+	 * move, typically because the user clicked on their client-side
+	 * decorations. Note that a more sophisticated compositor should check the
+	 * provided serial against a list of button press serials sent to this
+	 * client, to prevent the client from requesting this whenever they want. */
+	struct wayterra_toplevel *toplevel = wl_container_of(listener, toplevel, request_move);
+	begin_interactive(toplevel, WAYTERRA_CURSOR_MOVE, 0);
+}
 
 void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	/* Called when the xdg_toplevel is destroyed. */
@@ -133,7 +173,7 @@ void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel->unmap.link);
 	wl_list_remove(&toplevel->commit.link);
 	wl_list_remove(&toplevel->destroy.link);
-	// wl_list_remove(&toplevel->request_move.link);
+	wl_list_remove(&toplevel->request_move.link);
 	// wl_list_remove(&toplevel->request_resize.link);
 	// wl_list_remove(&toplevel->request_maximize.link);
 	// wl_list_remove(&toplevel->request_fullscreen.link);

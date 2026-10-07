@@ -1,5 +1,7 @@
 #include <wayland-server-core.h>
-
+#include "server.h"
+void focus_toplevel(struct wayterra_toplevel *toplevel);
+void xdg_toplevel_request_move( struct wl_listener *listener, void *data);
 void xdg_toplevel_destroy(struct wl_listener *listener, void *data);
 void xdg_toplevel_commit(struct wl_listener *listener, void *data);
 void xdg_toplevel_map(struct wl_listener *listener, void *data);

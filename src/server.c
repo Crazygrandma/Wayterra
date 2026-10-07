@@ -107,6 +107,29 @@ void setup(wayterra_server_t *server)
         wlr_seat_create(server->wl_display, "seat0");
 
 
+	/*
+	 * Creates a cursor, which is a wlroots utility for tracking the cursor
+	 * image shown on screen.
+	 */
+	server->cursor = wlr_cursor_create();
+	wlr_cursor_attach_output_layout(server->cursor, server->output_layout);
+
+	/* Creates an xcursor manager, another wlroots utility which loads up
+	 * Xcursor themes to source cursor images from and makes sure that cursor
+	 * images are available at all scale factors on the screen (necessary for
+	 * HiDPI support). */
+	server->cursor_mgr = wlr_xcursor_manager_create(NULL, 24);
+
+	server->cursor_mode = WAYTERRA_CURSOR_PASSTHROUGH;
+	server->cursor_motion.notify = server_cursor_motion;
+	wl_signal_add(&server->cursor->events.motion, &server->cursor_motion);
+	server->cursor_motion_absolute.notify = server_cursor_motion_absolute;
+	wl_signal_add(&server->cursor->events.motion_absolute,
+			&server->cursor_motion_absolute);
+	server->cursor_button.notify = server_cursor_button;
+	wl_signal_add(&server->cursor->events.button, &server->cursor_button);
+
+
 
     /* Scene graph */
     server->scene = wlr_scene_create();
@@ -116,8 +139,6 @@ void setup(wayterra_server_t *server)
             server->scene,
             server->output_layout
         );
-
-
 
     /* XDG shell */
     wl_list_init(&server->toplevels);
@@ -158,6 +179,8 @@ void cleanup(wayterra_server_t *server) {
     /* Remove all connected clients */
     wl_display_destroy_clients(server->wl_display);
 
+	wl_list_remove(&server->cursor_motion.link);
+	wl_list_remove(&server->cursor_motion_absolute.link);
     wl_list_remove(&server->new_xdg_toplevel.link);
     wl_list_remove(&server->new_input.link);
     wl_list_remove(&server->new_output.link);

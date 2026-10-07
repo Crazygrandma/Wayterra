@@ -196,7 +196,6 @@ void renderer_draw_frame(
 
     r->last_time = current_time;
 
-
     /*
      * Reverse time when moving left.
      * Move normally when moving right.
@@ -206,7 +205,6 @@ void renderer_draw_frame(
     }
 
     r->timer += delta_time;
-
 
 
     /* Use shader */
@@ -223,8 +221,6 @@ void renderer_draw_frame(
 
     /* Time */
     glUniform1f( r->time_loc, r->timer);
-
-
 
     /* Cleanup */
     glDisableVertexAttribArray(r->pos_loc);

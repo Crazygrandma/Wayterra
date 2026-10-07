@@ -4,6 +4,8 @@
 #include "server.h"
 #include <wlr/render/egl.h>
 #include <wlr/render/gles2.h>
+
+// #include <wlr_output.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <error.h>
@@ -184,6 +186,8 @@ void server_new_output(struct wl_listener *listener, void *data) {
     wayterra_server_t *server =
         wl_container_of(listener, server, new_output);
     struct wlr_output *wlr_output = data;
+
+    // wlr_output_set_name(wlr_output,"Wayterra");
 
     /* Configure output to use our allocator and renderer */
     wlr_output_init_render(wlr_output, server->allocator, server->renderer);

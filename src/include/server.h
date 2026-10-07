@@ -8,6 +8,9 @@
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_scene.h>
+#include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_xcursor_manager.h>
+#include <wlr/types/wlr_seat.h>
 
 #include <GLES2/gl2.h>
 
@@ -28,6 +31,12 @@ typedef struct wayterra_output {
 
 } wayterra_output_t;
 
+enum wayterra_cursor_mode {
+	WAYTERRA_CURSOR_PASSTHROUGH,
+	WAYTERRA_CURSOR_MOVE,
+	WAYTERRA_CURSOR_RESIZE,
+};
+
 typedef struct wayterra_server {
     struct wl_display *wl_display;
     struct wl_event_loop *event_loop;
@@ -42,7 +51,18 @@ typedef struct wayterra_server {
 	struct wl_listener new_xdg_toplevel;
 	struct wl_listener new_xdg_popup;
 	struct wl_list toplevels;
-    
+   
+
+    // CURSOR
+	struct wlr_cursor *cursor;
+	struct wlr_xcursor_manager *cursor_mgr;
+	struct wl_listener cursor_motion;
+	struct wl_listener cursor_motion_absolute;
+	struct wl_listener cursor_button;
+	struct wl_listener cursor_axis;
+	struct wl_listener cursor_frame;
+
+	enum wayterra_cursor_mode cursor_mode;
     // INPUT
     struct wlr_seat *seat;
     struct wl_listener new_input;
@@ -50,6 +70,11 @@ typedef struct wayterra_server {
     struct wl_list keyboards; // wayterra_keyboard_t::link
     
 
+	struct wayterra_toplevel *grabbed_toplevel;
+	double grab_x, grab_y;
+	struct wlr_box grab_geobox;
+	uint32_t resize_edges;
+    
     struct wlr_output_layout *output_layout;
     struct wl_list outputs;
  
