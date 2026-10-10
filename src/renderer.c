@@ -3,16 +3,7 @@
 #include "gl_utils.h"
 #include <wlr/util/log.h>
 #include <string.h>
-#include <time.h>
 
-static double get_time(void)
-{
-    struct timespec ts;
-
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-
-    return ts.tv_sec + ts.tv_nsec / 1000000000.0;
-}
 
 static void make_quad(float *dst, float x0, float y0, float x1, float y1) {
     float quad[24] = {
@@ -31,7 +22,6 @@ static void init_shader(wayterra_renderer_t *r)
 {
 
     wlr_log(WLR_DEBUG, "Initializing renderer shader");
-
 
     wlr_log(WLR_DEBUG, "Creating shader program");
 
@@ -52,20 +42,17 @@ static void init_shader(wayterra_renderer_t *r)
     r->time_loc = glGetUniformLocation(r->shader_program, "uTime");
 
     r->loc_texture = glGetUniformLocation( r->shader_program, "spriteTexture");
-
-
     r->loc_animate = glGetUniformLocation( r->shader_program, "uAnimate");
 
 
+}
+
+static void init_vertex_buffer(wayterra_renderer_t *r)
+{
     wlr_log(WLR_DEBUG, "Creating vertex buffer");
-
     glGenBuffers(1, &r->vbo);
-    log_gl_error("glGenBuffers");
-
-    wlr_log(WLR_DEBUG, "Created VBO: %u", r->vbo);
 
     glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
-    log_gl_error("glBindBuffer GL_ARRAY_BUFFER");
 
     glBufferData(
         GL_ARRAY_BUFFER,
@@ -74,38 +61,32 @@ static void init_shader(wayterra_renderer_t *r)
         GL_STATIC_DRAW
     );
 
-
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    wlr_log(WLR_DEBUG, "Shader initialization successful");
 }
 
-static void init_textures(wayterra_renderer_t *r) {
+static void init_textures( wayterra_renderer_t *r, wayterra_game_t *game) {
     r->backgroundTexture = load_texture("assets/background1.png");
-    r->playerTexture = load_texture("assets/back.png");
+
+    game->player.texture = load_texture("assets/back.png");
 }
 
-void initialize_renderer(wayterra_renderer_t *r)
+void initialize_renderer( wayterra_renderer_t *r, wayterra_game_t *game)
 {
     wlr_log(WLR_DEBUG, "initialize_renderer()");
 
-    /* Must run before init_shader(), which uploads r->vertices to the VBO */
-    make_quad(r->vertices, -1.0f, -1.0f, 1.0f, 1.0f);   // fullscreen
+    make_quad(r->vertices, -1.0f, -1.0f, 1.0f, 1.0f);
 
     init_shader(r);
-    init_textures(r);
+    if (!r->shader_program) {
+        return;
+    }
 
-    // Enable alpha blend
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    init_vertex_buffer(r);
+    
+    init_textures(r, game);
 
 
     r->shader_initialized = true;
-
-    wlr_log(
-        WLR_DEBUG,
-        "Renderer initialization complete"
-    );
 }
 
 
@@ -153,78 +134,68 @@ static void drawBackground(wayterra_renderer_t *r)
     glDrawArrays( GL_TRIANGLES, 0, 6);
 }
 
-static void drawPlayer(wayterra_renderer_t *r)
+
+static void drawPlayer(
+    wayterra_renderer_t *r,
+    wayterra_player_t *player)
 {
+    if (player->texture == 0) {
+        return;
+    }
+
     glEnable(GL_BLEND);
-    
-    glUniform1i(r->loc_animate, 1);
-   
+
+    glUniform1i(r->loc_animate, player->animated);
+
     glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, player->texture);
 
-    glBindTexture( GL_TEXTURE_2D, r->playerTexture);
+    glUniform1i(r->loc_texture, 0);
 
-    glUniform1i( r->loc_texture, 0);
-
-    glDrawArrays( GL_TRIANGLES, 0, 6);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 }
+
 
 void renderer_draw_frame(
         wayterra_renderer_t *r,
+        wayterra_game_t *game,
         int width,
         int height)
 {
     if (!r->shader_initialized) {
-        wlr_log( WLR_DEBUG, "Renderer not initialized, initializing now");
+        wlr_log(WLR_DEBUG,
+            "Renderer not initialized, initializing now");
 
-        initialize_renderer(r);
+        initialize_renderer(r, game);
     }
 
     if (!r->shader_initialized) {
-        wlr_log( WLR_ERROR, "Renderer initialization failed; skipping frame");
+        wlr_log(WLR_ERROR,
+            "Renderer initialization failed; skipping frame");
 
         return;
     }
 
-    glViewport( 0, 0, width, height);
+    glViewport(0, 0, width, height);
 
-
-    // GAME LOGIC
-
-    /* Calculate frame time */
-    double current_time = get_time();
-    double delta_time = current_time - r->last_time;
-
-    r->last_time = current_time;
-
-    /*
-     * Reverse time when moving left.
-     * Move normally when moving right.
-     */
-    if (r->move_left) {
-        delta_time = -delta_time;
-    }
-
-    r->timer += delta_time;
-
-
-    /* Use shader */
+    /* Activate the shader */
     glUseProgram(r->shader_program);
 
     /* Setup VBO and vertex attributes */
     setup_vertex_attributes(r);
 
+    /* Set animation time before drawing */
+    glUniform1f(r->time_loc, (float)game->timer);
+
     /* Draw background first */
     drawBackground(r);
 
     /* Draw player on top */
-    drawPlayer(r);
-
-    /* Time */
-    glUniform1f( r->time_loc, r->timer);
+    drawPlayer(r, &game->player);
 
     /* Cleanup */
     glDisableVertexAttribArray(r->pos_loc);
     glDisableVertexAttribArray(r->uv_loc);
 
-    glBindBuffer( GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }

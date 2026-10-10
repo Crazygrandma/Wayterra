@@ -1,14 +1,15 @@
-#ifndef RENDERER_H
-#define RENDERER_H
+
+#ifndef WAYTERRA_RENDERER_H
+#define WAYTERRA_RENDERER_H
 
 #include <stdbool.h>
 #include <GLES2/gl2.h>
 
+#include "game.h"
+
 typedef struct wayterra_renderer {
     GLuint shader_program;
-
     GLuint vbo;
-    
     GLuint fbo;
 
     GLint pos_loc;
@@ -17,25 +18,17 @@ typedef struct wayterra_renderer {
     GLint loc_texture;
     GLint loc_animate;
 
-    float timer;
-    float last_time;
-
     bool shader_initialized;
     float vertices[24];
-    
-    GLuint playerTexture;
+
     GLuint backgroundTexture;
-    bool move_left;
-    bool move_right;
 } wayterra_renderer_t;
 
-/* lifecycle */
-void initialize_renderer(wayterra_renderer_t *r);
-void renderer_shutdown(wayterra_renderer_t *r);
+void initialize_renderer(wayterra_renderer_t *r, wayterra_game_t *game);
 
-/* rendering */
 void renderer_draw_frame(
     wayterra_renderer_t *r,
+    wayterra_game_t *game,
     int width,
     int height
 );

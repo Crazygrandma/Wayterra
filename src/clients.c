@@ -125,21 +125,43 @@ void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	// wl_signal_add(&xdg_toplevel->events.request_fullscreen, &toplevel->request_fullscreen);
 }
 
-static void begin_interactive(struct wayterra_toplevel *toplevel,
+/* Map a resize edge mask to an xcursor name. */
+static const char *resize_cursor_from_edges(uint32_t edges) {
+	if (edges & WLR_EDGE_TOP) {
+		if (edges & WLR_EDGE_RIGHT) { return "top_right_corner"; }
+		if (edges & WLR_EDGE_LEFT)  { return "top_left_corner";  }
+		return "top_side";
+	}
+	if (edges & WLR_EDGE_BOTTOM) {
+		if (edges & WLR_EDGE_RIGHT) { return "bottom_right_corner"; }
+		if (edges & WLR_EDGE_LEFT)  { return "bottom_left_corner";  }
+		return "bottom_side";
+	}
+	if (edges & WLR_EDGE_RIGHT) { return "right_side"; }
+	if (edges & WLR_EDGE_LEFT)  { return "left_side";  }
+	return "default";
+}
+
+void begin_interactive(struct wayterra_toplevel *toplevel,
 		enum wayterra_cursor_mode mode, uint32_t edges) {
 	/* This function sets up an interactive move or resize operation, where the
 	 * compositor stops propegating pointer events to clients and instead
 	 * consumes them itself, to move or resize windows. */
 	wayterra_server_t *server = toplevel->server;
 
+
 	server->grabbed_toplevel = toplevel;
 	server->cursor_mode = mode;
 
 	if (mode == WAYTERRA_CURSOR_MOVE) {
+        wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "grabbing");
 		server->grab_x = server->cursor->x - toplevel->scene_tree->node.x;
 		server->grab_y = server->cursor->y - toplevel->scene_tree->node.y;
 	} else {
 		struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
+
+		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr,
+			resize_cursor_from_edges(edges));
 
 		double border_x = (toplevel->scene_tree->node.x + geo_box->x) +
 			((edges & WLR_EDGE_RIGHT) ? geo_box->width : 0);

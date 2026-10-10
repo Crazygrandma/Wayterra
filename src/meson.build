@@ -16,7 +16,9 @@ inc = include_directories('include', 'third_party')
 executable(
   'wayterra',
   'output.c',
+  'pointer.c',
   'input.c',
+  'game.c',
   'renderer.c',
   'server.c',
   'wayterra.c',

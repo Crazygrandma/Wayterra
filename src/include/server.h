@@ -11,7 +11,7 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_seat.h>
-
+#include "game.h"
 #include <GLES2/gl2.h>
 
 
@@ -80,7 +80,17 @@ typedef struct wayterra_server {
  
     struct wl_listener new_output;
 
+    wayterra_game_t game;
+    double last_frame_time;
+    bool frame_time_initialized;
 
+
+    bool move_left;
+    bool move_right;
+
+    /* True while MODIFIER_KEY is held down. Updated by the keyboard
+     * handler in input.c, readable from any file that has the server. */
+    bool modifier_held;
 
 } wayterra_server_t;
 

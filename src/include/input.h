@@ -25,12 +25,9 @@ typedef struct wayterra_keyboard {
 } wayterra_keyboard_t;
 
 
+struct wayterra_toplevel *desktop_toplevel_at( wayterra_server_t *server, double lx, double ly, struct wlr_surface **surface, double *sx, double *sy);
 /* Defined in input.c, referenced by server.c: must have external linkage. */
-void server_cursor_button(struct wl_listener *listener, void *data);
-void server_cursor_motion_absolute(struct wl_listener *listener, void *data);
-void server_cursor_motion(struct wl_listener *listener, void *data);
-void process_cursor_motion(wayterra_server_t *server, uint32_t time);
 void wayterra_handle_modifiers(struct wl_listener *listener, void *data);
 void server_new_input(struct wl_listener *listener, void *data);
-void process_cursor_resize(wayterra_server_t *server);
+void wayterra_new_keyboard(wayterra_server_t *server, struct wlr_input_device *device);
 #endif /* WAYTERRA_INPUT_H */

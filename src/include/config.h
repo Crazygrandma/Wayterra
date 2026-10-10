@@ -12,11 +12,13 @@
 #define NUM_TILES 30.0
 
 // Edit to change the player walking speed
-#define PLAYER_SPEED 0.01
+#define PLAYER_SPEED 1000
 
 // Edit to change the modifier key 
 // WlR_MODIFIER_LOGO = Windows key
 // WLR_MODIFIER_Alt = Alt key
 #define MODIFIER_KEY WLR_MODIFIER_ALT
 #define USER_KEYMAP "de"
+#define KEY_REPEAT_RATE 50
+#define KEY_REPEAT_DELAY 180
 #endif

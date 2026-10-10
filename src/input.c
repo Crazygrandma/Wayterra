@@ -1,28 +1,50 @@
-#include <stdbool.h>
-#include <stdint.h>
-#include <unistd.h>     // fork(), setsid(), execlp()
-#include <stdlib.h>     // EXIT_FAILURE
+#include <stdbool.h>    // bool, true/false
+#include <stdint.h>     // uint32_t
+#include <stdio.h>      // printf()
+#include <stdlib.h>     // calloc(), free(), EXIT_FAILURE
+#include <unistd.h>     // fork(), setsid(), execlp(), _exit()
 #include <sys/types.h>  // pid_t
-#include <wayland-util.h>
-#include <wlr/types/wlr_keyboard.h>
-#include <xkbcommon/xkbcommon-keysyms.h>
-#include <xkbcommon/xkbcommon.h>
 
-#include "config.h"
-#include "clients.h"
-#include "input.h"
-#include "server.h"
-#include "renderer.h"
+#include <wlr/types/wlr_keyboard.h>            // wlr_keyboard_*, wlr_keyboard_key_event
+#include <xkbcommon/xkbcommon-keysyms.h>       // XKB_KEY_*
+#include <xkbcommon/xkbcommon.h>               // xkb_context/keymap/state, xkb_rule_names
+
+#include "config.h"     // MODIFIER_KEY, USER_KEYMAP, KEY_REPEAT_*
+#include "input.h"      // wayterra_keyboard_t, desktop_toplevel_at(); pulls in wayland-server-core.h, wlr_seat.h, wlr_input_device.h
+#include "server.h"     // wayterra_server_t, wayterra_output_t, wlr_scene.h, wlr_xdg_shell.h
+#include "pointer.h"    // server_new_pointer()
+
+struct xkb_rule_names rules = {
+    .layout = USER_KEYMAP,
+};
 
 
+void server_new_input(struct wl_listener *listener, void *data) {
+    // Get pointer to the server struct for this listener 
+    wayterra_server_t *server =
+        wl_container_of(listener, server, new_input);
 
-static void server_new_pointer(wayterra_server_t *server,
-		struct wlr_input_device *device) {
-	/* We don't do anything special with pointers. All of our pointer handling
-	 * is proxied through wlr_cursor. On another compositor, you might take this
-	 * opportunity to do libinput configuration on the device to set
-	 * acceleration, etc. */
-	wlr_cursor_attach_input_device(server->cursor, device);
+    struct wlr_input_device *device = data;
+
+    switch (device->type) {
+    case WLR_INPUT_DEVICE_KEYBOARD:
+        wayterra_new_keyboard(server, device);
+        break;
+    case WLR_INPUT_DEVICE_POINTER:
+        server_new_pointer(server, device);
+        break;
+    default:
+        break;
+    }
+
+    // Update seat capabilities
+    uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
+
+    if (!wl_list_empty(&server->keyboards)) {
+        caps |= WL_SEAT_CAPABILITY_KEYBOARD;
+    }
+
+    wlr_seat_set_capabilities(server->seat, caps);
 }
 
 static void wayterra_handle_keyboard_destroy(struct wl_listener *listener, void *data) {
@@ -57,6 +79,8 @@ static bool handle_keybinding(wayterra_keyboard_t *keyboard, wayterra_server_t *
 	 *
 	 * This function assumes MODIFIER is held down.
 	 */
+
+    // server->cursor_mode = WAYTERRA_CURSOR_MOVE;
 	switch (sym) {
 	case XKB_KEY_Escape:
 		wl_display_terminate(server->wl_display);
@@ -64,6 +88,23 @@ static bool handle_keybinding(wayterra_keyboard_t *keyboard, wayterra_server_t *
 	case XKB_KEY_Return:
 		spawn_client("alacritty");   // change to your terminal
 		break;
+	case XKB_KEY_q:
+	case XKB_KEY_Q: {
+		/* Kill the currently focused client: look up the seat's
+		 * keyboard-focused surface and ask its toplevel to close. */
+		struct wlr_surface *focused =
+			server->seat->keyboard_state.focused_surface;
+		if (focused == NULL) {
+			break;
+		}
+		struct wlr_xdg_toplevel *xdg_toplevel =
+			wlr_xdg_toplevel_try_from_wlr_surface(focused);
+		if (xdg_toplevel == NULL) {
+			break;
+		}
+		wlr_xdg_toplevel_send_close(xdg_toplevel);
+		break;
+	}
 	default:
 		return false;
 	}
@@ -76,6 +117,16 @@ void wayterra_handle_modifiers(struct wl_listener *listener, void *data) {
 
 	wayterra_server_t *server = keyboard->server;
 
+	/* Track whether MODIFIER_KEY is currently held so other files (e.g. the
+	 * pointer button handler) can check it for MODIFIER + drag moving.
+	 *
+	 * This is the right place for it: wlroots emits the *key* event before it
+	 * updates the xkb modifier state, and only emits this modifiers event
+	 * after the state has changed. Reading it in the key handler would lag by
+	 * one event (Alt's press would read as "not held", its release as "held").
+	 */
+	server->modifier_held = (wlr_keyboard_get_modifiers(keyboard->wlr_keyboard) & MODIFIER_KEY) != 0;
+
     /* Ensure this keyboard is the active one for the seat */
     wlr_seat_set_keyboard(server->seat, keyboard->wlr_keyboard);
 
@@ -86,6 +137,7 @@ void wayterra_handle_modifiers(struct wl_listener *listener, void *data) {
     );
 }
 
+
 static void wayterra_handle_key(
         struct wl_listener *listener, void *data) {
     /* This event is raised when a key is pressed or released. */
@@ -95,7 +147,6 @@ static void wayterra_handle_key(
     wayterra_output_t *output =
         wl_container_of(server->outputs.next, output, link);
 
-    wayterra_renderer_t *renderer = output->renderer;
     struct wlr_keyboard_key_event *event = data;
     struct wlr_seat *seat = server->seat;
 
@@ -119,32 +170,28 @@ static void wayterra_handle_key(
         }
     }
 
-    if (!handled && event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-
+    if (!handled) {
         for (int i = 0; i < nsyms; i++) {
             switch (syms[i]) {
-            case XKB_KEY_a:
-            case XKB_KEY_A:
-                renderer->move_left = true;
-                renderer->move_right = false;
-                // printf("Move left");
-                // handled = true;
-                break;
+                case XKB_KEY_d:
+                case XKB_KEY_D:
+                    server->move_left =
+                        event->state == WL_KEYBOARD_KEY_STATE_PRESSED;
+                    handled = true;
+                    break;
 
-            case XKB_KEY_d:
-            case XKB_KEY_D:
-                renderer->move_left = false;
-                renderer->move_right = true;
-                // printf("Move right");
-                // handled = true;
-                break;
+                case XKB_KEY_a:
+                case XKB_KEY_A:
+                    server->move_right =
+                        event->state == WL_KEYBOARD_KEY_STATE_PRESSED;
+                    handled = true;
+                    break;
             }
         }
     }
 
     /* Normal compositor keybindings (only when movement mode is OFF) */
     if (!handled &&
-        !keyboard->movement_mode &&
         (modifiers & MODIFIER_KEY) &&
         event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 
@@ -164,8 +211,7 @@ static void wayterra_handle_key(
         );
     }
 }
-void wayterra_new_keyboard(wayterra_server_t *server,
-                          struct wlr_input_device *device) {
+void wayterra_new_keyboard(wayterra_server_t *server, struct wlr_input_device *device) {
 
     
     struct wlr_keyboard *wlr_keyboard =
@@ -199,11 +245,12 @@ void wayterra_new_keyboard(wayterra_server_t *server,
         printf("[keyboard] ERROR: xkb_context_new failed\n");
         return;
     }
-
-    // TODO change keymap to value of config.h
     struct xkb_keymap *keymap =
-        xkb_keymap_new_from_names(context, NULL,
-                                 XKB_KEYMAP_COMPILE_NO_FLAGS);
+        xkb_keymap_new_from_names(
+                context,
+                &rules,
+                XKB_KEYMAP_COMPILE_NO_FLAGS
+                );
 
     if (!keymap) {
         printf("[keyboard] ERROR: xkb_keymap_new_from_names failed\n");
@@ -219,7 +266,12 @@ void wayterra_new_keyboard(wayterra_server_t *server,
 
     // Key repeat config
     printf("[keyboard] setting repeat info\n");
-    wlr_keyboard_set_repeat_info(wlr_keyboard, 25, 600);
+    /* Key repeat */
+    wlr_keyboard_set_repeat_info(
+            wlr_keyboard,
+            KEY_REPEAT_RATE,
+            KEY_REPEAT_DELAY
+            );
 
     // --- Event listeners ---
     printf("[keyboard] setting up listeners\n");
@@ -247,15 +299,7 @@ void wayterra_new_keyboard(wayterra_server_t *server,
     printf("[keyboard] setup complete\n");
 }
 
-static void process_cursor_move(wayterra_server_t *server) {
-	/* Move the grabbed toplevel to the new position. */
-	struct wayterra_toplevel *toplevel = server->grabbed_toplevel;
-	wlr_scene_node_set_position(&toplevel->scene_tree->node,
-		server->cursor->x - server->grab_x,
-		server->cursor->y - server->grab_y);
-}
-
-static struct wayterra_toplevel *desktop_toplevel_at(
+struct wayterra_toplevel *desktop_toplevel_at(
 		wayterra_server_t *server, double lx, double ly,
 		struct wlr_surface **surface, double *sx, double *sy) {
 	/* This returns the topmost node in the scene at the given layout coords.
@@ -281,186 +325,4 @@ static struct wayterra_toplevel *desktop_toplevel_at(
 		tree = tree->node.parent;
 	}
 	return tree->node.data;
-}
-
-void process_cursor_resize(wayterra_server_t *server) {
-	/*
-	 * Resizing the grabbed toplevel can be a little bit complicated, because we
-	 * could be resizing from any corner or edge. This not only resizes the
-	 * toplevel on one or two axes, but can also move the toplevel if you resize
-	 * from the top or left edges (or top-left corner).
-	 *
-	 * Note that some shortcuts are taken here. In a more fleshed-out
-	 * compositor, you'd wait for the client to prepare a buffer at the new
-	 * size, then commit any movement that was prepared.
-	 */
-	struct wayterra_toplevel *toplevel = server->grabbed_toplevel;
-	double border_x = server->cursor->x - server->grab_x;
-	double border_y = server->cursor->y - server->grab_y;
-	int new_left = server->grab_geobox.x;
-	int new_right = server->grab_geobox.x + server->grab_geobox.width;
-	int new_top = server->grab_geobox.y;
-	int new_bottom = server->grab_geobox.y + server->grab_geobox.height;
-
-	if (server->resize_edges & WLR_EDGE_TOP) {
-		new_top = border_y;
-		if (new_top >= new_bottom) {
-			new_top = new_bottom - 1;
-		}
-	} else if (server->resize_edges & WLR_EDGE_BOTTOM) {
-		new_bottom = border_y;
-		if (new_bottom <= new_top) {
-			new_bottom = new_top + 1;
-		}
-	}
-	if (server->resize_edges & WLR_EDGE_LEFT) {
-		new_left = border_x;
-		if (new_left >= new_right) {
-			new_left = new_right - 1;
-		}
-	} else if (server->resize_edges & WLR_EDGE_RIGHT) {
-		new_right = border_x;
-		if (new_right <= new_left) {
-			new_right = new_left + 1;
-		}
-	}
-
-	struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
-	wlr_scene_node_set_position(&toplevel->scene_tree->node,
-		new_left - geo_box->x, new_top - geo_box->y);
-
-	int new_width = new_right - new_left;
-	int new_height = new_bottom - new_top;
-	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
-}
-
-void process_cursor_motion(wayterra_server_t *server, uint32_t time) {
-	/* If the mode is non-passthrough, delegate to those functions. */
-	if (server->cursor_mode == WAYTERRA_CURSOR_MOVE) {
-		process_cursor_move(server);
-		return;
-	} else if (server->cursor_mode == WAYTERRA_CURSOR_RESIZE) {
-		process_cursor_resize(server);
-		return;
-	}
-
-	/* Otherwise, find the toplevel under the pointer and send the event along. */
-	double sx, sy;
-	struct wlr_seat *seat = server->seat;
-	struct wlr_surface *surface = NULL;
-	struct wayterra_toplevel *toplevel = desktop_toplevel_at(server,
-			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-	if (!toplevel) {
-		/* If there's no toplevel under the cursor, set the cursor image to a
-		 * default. This is what makes the cursor image appear when you move it
-		 * around the screen, not over any toplevels. */
-		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
-	}
-	if (surface) {
-		/*
-		 * Send pointer enter and motion events.
-		 *
-		 * The enter event gives the surface "pointer focus", which is distinct
-		 * from keyboard focus. You get pointer focus by moving the pointer over
-		 * a window.
-		 *
-		 * Note that wlroots will avoid sending duplicate enter/motion events if
-		 * the surface has already has pointer focus or if the client is already
-		 * aware of the coordinates passed.
-		 */
-		wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-	} else {
-		/* Clear pointer focus so future button events and such are not sent to
-		 * the last client to have the cursor over it. */
-		wlr_seat_pointer_clear_focus(seat);
-	}
-}
-
-static void reset_cursor_mode(wayterra_server_t *server) {
-	/* Reset the cursor mode to passthrough. */
-	server->cursor_mode = WAYTERRA_CURSOR_PASSTHROUGH;
-	server->grabbed_toplevel = NULL;
-}
-
-void server_cursor_button(struct wl_listener *listener, void *data) {
-	/* This event is forwarded by the cursor when a pointer emits a button
-	 * event. */
-	wayterra_server_t *server =
-		wl_container_of(listener, server, cursor_button);
-	struct wlr_pointer_button_event *event = data;
-	/* Notify the client with pointer focus that a button press has occurred */
-	wlr_seat_pointer_notify_button(server->seat,
-			event->time_msec, event->button, event->state);
-	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
-		/* If you released any buttons, we exit interactive move/resize mode. */
-		reset_cursor_mode(server);
-	} else {
-		/* Focus that client if the button was _pressed_ */
-		double sx, sy;
-		struct wlr_surface *surface = NULL;
-		struct wayterra_toplevel *toplevel = desktop_toplevel_at(server,
-				server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-		focus_toplevel(toplevel);
-	}
-}
-void server_cursor_motion(struct wl_listener *listener, void *data) {
-	/* This event is forwarded by the cursor when a pointer emits a _relative_
-	 * pointer motion event (i.e. a delta) */
-	wayterra_server_t *server =
-		wl_container_of(listener, server, cursor_motion);
-	struct wlr_pointer_motion_event *event = data;
-	/* The cursor doesn't move unless we tell it to. The cursor automatically
-	 * handles constraining the motion to the output layout, as well as any
-	 * special configuration applied for the specific input device which
-	 * generated the event. You can pass NULL for the device if you want to move
-	 * the cursor around without any input. */
-	wlr_cursor_move(server->cursor, &event->pointer->base,
-			event->delta_x, event->delta_y);
-	process_cursor_motion(server, event->time_msec);
-}
-
-void server_cursor_motion_absolute(
-		struct wl_listener *listener, void *data) {
-	/* This event is forwarded by the cursor when a pointer emits an _absolute_
-	 * motion event, from 0..1 on each axis. This happens, for example, when
-	 * wlroots is running under a Wayland window rather than KMS+DRM, and you
-	 * move the mouse over the window. You could enter the window from any edge,
-	 * so we have to warp the mouse there. There is also some hardware which
-	 * emits these events. */
-	wayterra_server_t *server =
-		wl_container_of(listener, server, cursor_motion_absolute);
-	struct wlr_pointer_motion_absolute_event *event = data;
-	wlr_cursor_warp_absolute(server->cursor, &event->pointer->base, event->x,
-		event->y);
-	process_cursor_motion(server, event->time_msec);
-}
-
-// TODO Fix and refactor input handling
-void server_new_input(struct wl_listener *listener, void *data) {
-    // Get pointer to the server struct for this listener 
-    wayterra_server_t *server =
-        wl_container_of(listener, server, new_input);
-
-    struct wlr_input_device *device = data;
-
-    switch (device->type) {
-    case WLR_INPUT_DEVICE_KEYBOARD:
-        wayterra_new_keyboard(server, device);
-        break;
-    case WLR_INPUT_DEVICE_POINTER:
-        server_new_pointer(server, device);
-        break;
-    default:
-        break;
-    }
-
-    // Update seat capabilities
-    uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
-
-    if (!wl_list_empty(&server->keyboards)) {
-        caps |= WL_SEAT_CAPABILITY_KEYBOARD;
-    }
-
-    wlr_seat_set_capabilities(server->seat, caps);
 }

@@ -12,6 +12,7 @@
 #include "error.h"
 #include "output.h"
 #include "server.h"
+#include "pointer.h"
 #include "input.h"
 #include "clients.h"
 
@@ -153,6 +154,9 @@ void setup(wayterra_server_t *server)
         &server->xdg_shell->events.new_toplevel,
         &server->new_xdg_toplevel
     );
+
+    // Init wayterra game
+    game_init(&server->game);
 }
 
 void run(wayterra_server_t *server) {

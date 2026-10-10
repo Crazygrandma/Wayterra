@@ -1,7 +1,9 @@
 #include "output.h"
+#include "config.h"
 #include "renderer.h"
 #include "input.h"
 #include "server.h"
+#include "game.h"
 #include <wlr/render/egl.h>
 #include <wlr/render/gles2.h>
 
@@ -16,7 +18,13 @@
 #include <drm_fourcc.h>
 #include <inttypes.h>
 
+static double get_time(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
 
+    return ts.tv_sec + ts.tv_nsec / 1000000000.0;
+}
 
 /*
  * wlroots only makes its EGL context current *inside* its own calls, and
@@ -278,12 +286,38 @@ void server_new_output(struct wl_listener *listener, void *data) {
 
 }
 
+static void update_movement(wayterra_server_t *server, float delta_time)
+{
+    float speed = PLAYER_SPEED; // pixels per second
+    int dx = 0;
+
+    if (server->move_left)
+        dx -= speed * delta_time;
+
+    if (server->move_right)
+        dx += speed * delta_time;
+
+    if (dx == 0)
+        return;
+
+    struct wayterra_toplevel *toplevel;
+
+    wl_list_for_each(toplevel, &server->toplevels, link) {
+        wlr_scene_node_set_position(
+                &toplevel->scene_tree->node,
+                toplevel->scene_tree->node.x + dx,
+                toplevel->scene_tree->node.y
+                );
+    }
+}
+
 void output_frame(struct wl_listener *listener, void *data) {
     wayterra_output_t *output =
         wl_container_of(listener, output, frame);
 
     struct wayterra_server *server = output->server;
 
+    // update_movement();
     output_ensure_game_buffer(output);
     output_layout_to_scene(output);
 
@@ -301,14 +335,14 @@ void output_frame(struct wl_listener *listener, void *data) {
         return;
     }
 
-    struct wlr_buffer *game = output->gameframebuffer;
+    struct wlr_buffer *game_buffer = output->gameframebuffer;
     struct wayterra_renderer *r = output->renderer;
 
-    if (game != NULL) {
-        r->fbo = wlr_gles2_renderer_get_buffer_fbo(server->renderer, game);
+    if (game_buffer != NULL) {
+        r->fbo = wlr_gles2_renderer_get_buffer_fbo(server->renderer, game_buffer);
     }
 
-    if (game == NULL || r->fbo == 0) {
+    if (game_buffer == NULL || r->fbo == 0) {
         wlr_log(WLR_ERROR, "Failed to get game framebuffer FBO");
     } else {
         /* Discard stale errors left behind by wlroots' own GL work */
@@ -322,8 +356,24 @@ void output_frame(struct wl_listener *listener, void *data) {
         if (status != GL_FRAMEBUFFER_COMPLETE) {
             wlr_log(WLR_ERROR, "Game FBO is incomplete: 0x%x", status);
         } else {
+            double current_time = get_time();
+            double delta_time = 0.0;
 
-            renderer_draw_frame(output->renderer, game->width, game->height);
+            if (server->frame_time_initialized) {
+                delta_time = current_time - server->last_frame_time;
+            }
+
+            server->last_frame_time = current_time;
+            server->frame_time_initialized = true;
+
+            update_movement(server, (float)delta_time);
+            game_update(&server->game, (float)delta_time);
+            renderer_draw_frame(
+                    r,
+                    &server->game,
+                    game_buffer->width,
+                    game_buffer->height
+                    );
         }
 
         GLenum err = glGetError();
@@ -331,8 +381,8 @@ void output_frame(struct wl_listener *listener, void *data) {
             wlr_log(WLR_ERROR, "Game rendering failed: 0x%x", err);
         }
 
-        // glFlush();
-        glFinish();
+        glFlush();
+        // glFinish();
     }
 
     if (output->game_scene_buffer != NULL && output->gameframebuffer != NULL) {
