@@ -2,6 +2,7 @@
 
 #include <wayland-server-protocol.h>
 #include <wlr/backend.h>
+
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_output_layout.h>
@@ -78,8 +79,13 @@ void setup(wayterra_server_t *server)
     wlr_subcompositor_create(server->wl_display);
     wlr_data_device_manager_create(server->wl_display);
 
-
-    
+    // server->decoration_manager = wlr_xdg_decoration_manager_v1_create(server->wl_display);
+    //
+    // server->new_xdg_decoration.notify = server_new_xdg_decoration;
+    // wl_signal_add(
+    //         &server->decoration_manager->events.new_toplevel_decoration,
+    //         &server->new_xdg_decoration
+    //         );
     /* Output */
     server->output_layout =
         wlr_output_layout_create(server->wl_display);
@@ -140,7 +146,6 @@ void setup(wayterra_server_t *server)
             server->scene,
             server->output_layout
         );
-
     /* XDG shell */
     wl_list_init(&server->toplevels);
 

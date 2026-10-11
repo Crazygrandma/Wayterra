@@ -18,33 +18,46 @@ static void make_quad(float *dst, float x0, float y0, float x1, float y1) {
     memcpy(dst, quad, sizeof(quad));
 }
 
-static void init_shader(wayterra_renderer_t *r)
+static void make_quad_pixels(
+    float *dst,
+    float x,
+    float y,
+    float width,
+    float height,
+    int screenWidth,
+    int screenHeight)
 {
+    float x0 = 2.0f * x / screenWidth - 1.0f;
+    float x1 = 2.0f * (x + width) / screenWidth - 1.0f;
 
-    wlr_log(WLR_DEBUG, "Initializing renderer shader");
+    float y0 = 1.0f - 2.0f * y / screenHeight;
+    float y1 = 1.0f - 2.0f * (y + height) / screenHeight;
 
-    wlr_log(WLR_DEBUG, "Creating shader program");
+    make_quad(dst, x0, y1, x1, y0);
+}
 
-    r->shader_program = create_shader_program_from_files(
-        "shader/vertex.glsl",
-        "shader/fragment.glsl"
+static void init_shader(
+    wayterra_shader_t *shader,
+    const char *vertexPath,
+    const char *fragmentPath)
+{
+    wlr_log(WLR_DEBUG, "Initializing shader");
+
+    shader->program = create_shader_program_from_files(
+        vertexPath,
+        fragmentPath
     );
 
-    if (!r->shader_program) {
+    if (!shader->program) {
         wlr_log(WLR_ERROR, "Failed to create shader program");
         return;
     }
 
-    wlr_log(WLR_DEBUG, "Shader program: %u", r->shader_program);
+    wlr_log(WLR_DEBUG, "Shader program: %u", shader->program);
 
-    r->pos_loc = glGetAttribLocation(r->shader_program, "aPos");
-    r->uv_loc = glGetAttribLocation(r->shader_program, "aUV");
-    r->time_loc = glGetUniformLocation(r->shader_program, "uTime");
-
-    r->loc_texture = glGetUniformLocation( r->shader_program, "spriteTexture");
-    r->loc_animate = glGetUniformLocation( r->shader_program, "uAnimate");
-
-
+    shader->posLoc = glGetAttribLocation(shader->program, "aPos");
+    shader->uvLoc = glGetAttribLocation(shader->program, "aUV");
+    shader->textureLoc = glGetUniformLocation(shader->program, "spriteTexture");
 }
 
 static void init_vertex_buffer(wayterra_renderer_t *r)
@@ -66,40 +79,44 @@ static void init_vertex_buffer(wayterra_renderer_t *r)
 
 static void init_textures( wayterra_renderer_t *r, wayterra_game_t *game) {
     r->backgroundTexture = load_texture("assets/background1.png");
-
-    game->player.texture = load_texture("assets/back.png");
+    game->player.sprite.texture = load_texture("assets/player.png");
 }
 
-void initialize_renderer( wayterra_renderer_t *r, wayterra_game_t *game)
+void initialize_renderer(
+    wayterra_renderer_t *r,
+    wayterra_game_t *game,
+    int width,
+    int height)
 {
-    wlr_log(WLR_DEBUG, "initialize_renderer()");
+    wlr_log(WLR_DEBUG, "Initializing renderer");
 
     make_quad(r->vertices, -1.0f, -1.0f, 1.0f, 1.0f);
 
-    init_shader(r);
-    if (!r->shader_program) {
+    make_quad_pixels(r->playerVerts, 1000.0f, 300.0f, 128.0f, 128.0f, width, height);
+
+    init_shader(&r->spriteShader, "shader/vertex.glsl", "shader/fragment.glsl");
+
+    if (!r->spriteShader.program) {
         return;
     }
 
     init_vertex_buffer(r);
-    
     init_textures(r, game);
-
 
     r->shader_initialized = true;
 }
 
 
-static void setup_vertex_attributes(wayterra_renderer_t *r)
+static void setup_vertex_attributes(wayterra_renderer_t *r, wayterra_shader_t *shader)
 {
     glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
 
     GLsizei stride = 4 * sizeof(float);
 
     /* Position */
-    glEnableVertexAttribArray(r->pos_loc);
+    glEnableVertexAttribArray(shader->posLoc);
     glVertexAttribPointer(
-        r->pos_loc,
+        shader->posLoc,
         2,
         GL_FLOAT,
         GL_FALSE,
@@ -108,9 +125,9 @@ static void setup_vertex_attributes(wayterra_renderer_t *r)
     );
 
     /* UV */
-    glEnableVertexAttribArray(r->uv_loc);
+    glEnableVertexAttribArray(shader->uvLoc);
     glVertexAttribPointer(
-        r->uv_loc,
+        shader->uvLoc,
         2,
         GL_FLOAT,
         GL_FALSE,
@@ -119,83 +136,101 @@ static void setup_vertex_attributes(wayterra_renderer_t *r)
     );
 }
 
-static void drawBackground(wayterra_renderer_t *r)
-{
-    glDisable(GL_BLEND);
-    
-    glUniform1i(r->loc_animate, 0);
-    
-    glActiveTexture(GL_TEXTURE0);
-
-    glBindTexture( GL_TEXTURE_2D, r->backgroundTexture);
-
-    glUniform1i( r->loc_texture, 0);
-
-    glDrawArrays( GL_TRIANGLES, 0, 6);
-}
-
-
-static void drawPlayer(
+static void draw_texture(
     wayterra_renderer_t *r,
-    wayterra_player_t *player)
+    wayterra_shader_t *shader,
+    GLuint texture,
+    float *vertices)
 {
-    if (player->texture == 0) {
+    if (texture == 0) {
         return;
     }
 
-    glEnable(GL_BLEND);
+    glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
 
-    glUniform1i(r->loc_animate, player->animated);
+    glBufferSubData(
+        GL_ARRAY_BUFFER,
+        0,
+        sizeof(float) * 24,
+        vertices
+    );
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, player->texture);
-
-    glUniform1i(r->loc_texture, 0);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glUniform1i(shader->textureLoc, 0);
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
+static void draw_background(wayterra_renderer_t *r)
+{
+    glDisable(GL_BLEND);
+
+    draw_texture(
+        r,
+        &r->spriteShader,
+        r->backgroundTexture,
+        r->vertices
+    );
+}
+
+static void draw_player(
+    wayterra_renderer_t *r,
+    wayterra_player_t *player)
+{
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    draw_texture(
+        r,
+        &r->spriteShader,
+        player->sprite.texture,
+        r->playerVerts
+    );
+}
+
+static void use_shader(
+    wayterra_renderer_t *r,
+    wayterra_shader_t *shader)
+{
+    glUseProgram(shader->program);
+
+    setup_vertex_attributes(r, shader);
+}
+
+static void stop_shader(wayterra_shader_t *shader)
+{
+    glDisableVertexAttribArray(shader->posLoc);
+    glDisableVertexAttribArray(shader->uvLoc);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glUseProgram(0);
+}
 
 void renderer_draw_frame(
-        wayterra_renderer_t *r,
-        wayterra_game_t *game,
-        int width,
-        int height)
+    wayterra_renderer_t *r,
+    wayterra_game_t *game,
+    int width,
+    int height)
 {
     if (!r->shader_initialized) {
-        wlr_log(WLR_DEBUG,
-            "Renderer not initialized, initializing now");
-
-        initialize_renderer(r, game);
+        initialize_renderer(r, game, width, height);
     }
 
     if (!r->shader_initialized) {
         wlr_log(WLR_ERROR,
             "Renderer initialization failed; skipping frame");
-
         return;
     }
 
     glViewport(0, 0, width, height);
 
-    /* Activate the shader */
-    glUseProgram(r->shader_program);
+    wayterra_shader_t *shader = &r->spriteShader;
 
-    /* Setup VBO and vertex attributes */
-    setup_vertex_attributes(r);
+    use_shader(r, shader);
 
-    /* Set animation time before drawing */
-    glUniform1f(r->time_loc, (float)game->timer);
+    draw_background(r);
+    draw_player(r, &game->player);
 
-    /* Draw background first */
-    drawBackground(r);
-
-    /* Draw player on top */
-    drawPlayer(r, &game->player);
-
-    /* Cleanup */
-    glDisableVertexAttribArray(r->pos_loc);
-    glDisableVertexAttribArray(r->uv_loc);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    stop_shader(shader);
 }

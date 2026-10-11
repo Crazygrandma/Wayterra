@@ -7,11 +7,22 @@
 
 typedef struct {
     GLuint texture;
-    float x;
-    float y;
     float width;
     float height;
-    bool animated;
+} Sprite;
+
+typedef struct {
+    GLuint animatedSpriteTexture;
+    float width;
+    float height;
+    float spriteWidth;
+    float spriteHeight;
+} AnimatedSprite;
+
+typedef struct {
+    Sprite sprite;
+    float x;
+    float y;
 } wayterra_player_t;
 
 typedef struct {

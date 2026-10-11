@@ -18,9 +18,6 @@ void game_init(wayterra_game_t *game)
 
     game->player.x = 0.0f;
     game->player.y = 0.0f;
-    game->player.width = 32.0f;
-    game->player.height = 48.0f;
-    game->player.animated = true;
 }
 
 void game_update(wayterra_game_t *game, float delta_time)

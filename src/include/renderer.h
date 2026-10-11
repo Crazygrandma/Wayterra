@@ -7,24 +7,27 @@
 
 #include "game.h"
 
+// Sprite Shader
+typedef struct {
+    GLuint program;
+    GLint posLoc;
+    GLint uvLoc;
+    GLint textureLoc;
+} wayterra_shader_t;
+
 typedef struct wayterra_renderer {
-    GLuint shader_program;
     GLuint vbo;
     GLuint fbo;
 
-    GLint pos_loc;
-    GLint uv_loc;
-    GLint time_loc;
-    GLint loc_texture;
-    GLint loc_animate;
-
+    wayterra_shader_t spriteShader;
+   
+    GLint backgroundTexture;
     bool shader_initialized;
     float vertices[24];
-
-    GLuint backgroundTexture;
+    float playerVerts[24];
 } wayterra_renderer_t;
 
-void initialize_renderer(wayterra_renderer_t *r, wayterra_game_t *game);
+void initialize_renderer( wayterra_renderer_t *r, wayterra_game_t *game, int width, int height);
 
 void renderer_draw_frame(
     wayterra_renderer_t *r,

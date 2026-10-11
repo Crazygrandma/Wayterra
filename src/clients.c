@@ -52,6 +52,18 @@ void focus_toplevel(struct wayterra_toplevel *toplevel) {
 	}
 }
 
+void server_new_xdg_decoration(
+    struct wl_listener *listener,
+    void *data)
+{
+    struct wlr_xdg_toplevel_decoration_v1 *decoration = data;
+
+    wlr_xdg_toplevel_decoration_v1_set_mode(
+        decoration,
+        WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE
+    );
+}
+
 void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	struct wayterra_toplevel *toplevel = wl_container_of(listener, toplevel, map);

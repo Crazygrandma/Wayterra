@@ -4,6 +4,7 @@
 
 #include <wayland-server-core.h>
 #include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -45,7 +46,10 @@ typedef struct wayterra_server {
     struct wlr_allocator *allocator;
     struct wlr_scene *scene;
     struct wlr_scene_output_layout *scene_layout;
+    struct wlr_xdg_decoration_manager_v1 *decoration_manager;
     
+
+    struct wl_listener new_xdg_decoration;
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_toplevel;
