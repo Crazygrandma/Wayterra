@@ -162,6 +162,7 @@ static void wayterra_handle_key(
     uint32_t modifiers =
         wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 
+    // TODO figure out why XKB_KEY Tab 
     if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
         for (int i = 0; i < nsyms; i++) {
             if (syms[i] == XKB_KEY_Tab) {
@@ -169,20 +170,20 @@ static void wayterra_handle_key(
             }
         }
     }
-
+    // TODO rewrite input handle with config and better haneld var 
     if (!handled) {
         for (int i = 0; i < nsyms; i++) {
             switch (syms[i]) {
-                case XKB_KEY_d:
-                case XKB_KEY_D:
-                    server->move_left =
+                case XKB_KEY_h:
+                case XKB_KEY_H:
+                    server->move_right =
                         event->state == WL_KEYBOARD_KEY_STATE_PRESSED;
                     handled = true;
                     break;
 
-                case XKB_KEY_a:
-                case XKB_KEY_A:
-                    server->move_right =
+                case XKB_KEY_l:
+                case XKB_KEY_L:
+                    server->move_left =
                         event->state == WL_KEYBOARD_KEY_STATE_PRESSED;
                     handled = true;
                     break;

@@ -12,25 +12,27 @@ typedef struct {
 } Sprite;
 
 typedef struct {
-    GLuint animatedSpriteTexture;
+    GLuint texture;
     float width;
     float height;
-    float spriteWidth;
-    float spriteHeight;
+    float cellWidth;
+    float cellHeight;
+    float timeToNextFrame;
 } AnimatedSprite;
 
 typedef struct {
-    Sprite sprite;
+    AnimatedSprite sprite;
     float x;
     float y;
+    float width;
+    float height;
 } wayterra_player_t;
 
 typedef struct {
-} wayterra_world_t;
-
-typedef struct {
     wayterra_player_t player;
-    wayterra_world_t world;
+    Sprite logo;
+
+    float backgroundX;
 
     double timer;
     double last_time;

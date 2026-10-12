@@ -10,6 +10,7 @@ xkbcommon = dependency('xkbcommon', required: true)
 libdrm = dependency('libdrm', required: true)
 glesv2 = dependency('glesv2', required: true)
 egl = dependency('egl', required: true)
+cglm_dep = dependency('cglm')
 
 inc = include_directories('include', 'third_party')
 
@@ -34,6 +35,7 @@ executable(
     libdrm,
     glesv2,
     egl,
+    cglm_dep
   ],
   include_directories: inc,
 )

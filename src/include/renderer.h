@@ -13,6 +13,11 @@ typedef struct {
     GLint posLoc;
     GLint uvLoc;
     GLint textureLoc;
+    GLint loc_animate;
+    GLint timeLoc;
+
+    GLint projectionLoc;
+    GLint modelLoc;
 } wayterra_shader_t;
 
 typedef struct wayterra_renderer {
@@ -29,11 +34,6 @@ typedef struct wayterra_renderer {
 
 void initialize_renderer( wayterra_renderer_t *r, wayterra_game_t *game, int width, int height);
 
-void renderer_draw_frame(
-    wayterra_renderer_t *r,
-    wayterra_game_t *game,
-    int width,
-    int height
-);
+void renderer_draw_frame( wayterra_renderer_t *r, wayterra_game_t *game, int width, int height);
 
 #endif

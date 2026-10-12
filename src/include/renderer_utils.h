@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GLES2/gl2.h>
+#include <cglm/cglm.h>
 
 /* OpenGL error / shader log helpers (utils/renderer_utils.c) */
 void log_gl_error(const char *where);

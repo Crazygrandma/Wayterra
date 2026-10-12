@@ -1,5 +1,4 @@
 #include "game.h"
-
 #include <time.h>
 
 static double get_time(void)
@@ -16,11 +15,16 @@ void game_init(wayterra_game_t *game)
 
     game->last_time = get_time();
 
-    game->player.x = 0.0f;
-    game->player.y = 0.0f;
+    game->player.x = 100.0f;
+    game->player.y = 100.0f; 
+
+    game->player.width = 23.f * 8.f;
+
+    game->player.height =27.f * 8.f;
 }
 
 void game_update(wayterra_game_t *game, float delta_time)
 {
     game->timer += delta_time;
+
 }

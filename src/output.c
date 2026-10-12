@@ -289,23 +289,25 @@ void server_new_output(struct wl_listener *listener, void *data) {
 static void update_movement(wayterra_server_t *server, float delta_time)
 {
     float speed = PLAYER_SPEED; // pixels per second
-    int dx = 0;
+    float dx = 0.0f;
 
     if (server->move_left)
         dx -= speed * delta_time;
-
     if (server->move_right)
         dx += speed * delta_time;
 
-    if (dx == 0)
+    if (dx == 0.0f)
         return;
+
+    server->game.player.x += dx;
+    server->game.backgroundX -= dx;
 
     struct wayterra_toplevel *toplevel;
 
     wl_list_for_each(toplevel, &server->toplevels, link) {
         wlr_scene_node_set_position(
                 &toplevel->scene_tree->node,
-                toplevel->scene_tree->node.x + dx,
+                toplevel->scene_tree->node.x - dx,
                 toplevel->scene_tree->node.y
                 );
     }
@@ -368,12 +370,7 @@ void output_frame(struct wl_listener *listener, void *data) {
 
             update_movement(server, (float)delta_time);
             game_update(&server->game, (float)delta_time);
-            renderer_draw_frame(
-                    r,
-                    &server->game,
-                    game_buffer->width,
-                    game_buffer->height
-                    );
+            renderer_draw_frame( r, &server->game, game_buffer->width, game_buffer->height);
         }
 
         GLenum err = glGetError();
