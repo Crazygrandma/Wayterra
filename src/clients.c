@@ -11,10 +11,13 @@
 
 void focus_toplevel(struct wayterra_toplevel *toplevel) {
 	/* Note: this function only deals with keyboard focus. */
-	if (toplevel == NULL) {
+	
+    if (toplevel == NULL) {
 		return;
 	}
+    
 	wayterra_server_t *server = toplevel->server;
+
 	struct wlr_seat *seat = server->seat;
 	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
 	struct wlr_surface *surface = toplevel->xdg_toplevel->base->surface;

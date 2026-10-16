@@ -167,7 +167,9 @@ void server_cursor_button(struct wl_listener *listener, void *data) {
 			}
 			return;
 		}
-		focus_toplevel(toplevel);
+        focus_toplevel(toplevel);
+
+        server->game.movement_mode = (toplevel == NULL);
 	}
 }
 void server_cursor_motion(struct wl_listener *listener, void *data) {

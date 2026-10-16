@@ -5,6 +5,47 @@
 #include <wlr/util/log.h>
 #include <stdlib.h>
 
+void setup_vertex_attributes(wayterra_renderer_t *r, sprite_shader_base_t *shader)
+{
+    glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
+
+    GLsizei stride = 4 * sizeof(float);
+
+    /* Position */
+    glEnableVertexAttribArray(shader->posLoc);
+    glVertexAttribPointer(
+        shader->posLoc,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        stride,
+        (void *)0
+    );
+
+    /* UV */
+    glEnableVertexAttribArray(shader->uvLoc);
+    glVertexAttribPointer(
+        shader->uvLoc,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        stride,
+        (void *)(2 * sizeof(float))
+    );
+}
+
+void make_quad(float *dst, float x0, float y0, float x1, float y1) {
+    float quad[24] = {
+        x0, y0, 0.0f, 0.0f,
+        x1, y0, 1.0f, 0.0f,
+        x1, y1, 1.0f, 1.0f,
+
+        x0, y0, 0.0f, 0.0f,
+        x1, y1, 1.0f, 1.0f,
+        x0, y1, 0.0f, 1.0f
+    };
+    memcpy(dst, quad, sizeof(quad));
+}
 
 void log_gl_error(const char *where)
 {

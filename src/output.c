@@ -286,30 +286,38 @@ void server_new_output(struct wl_listener *listener, void *data) {
 
 }
 
-static void update_movement(wayterra_server_t *server, float delta_time)
+static void update_movement(wayterra_server_t *server)
 {
-    float speed = PLAYER_SPEED; // pixels per second
     float dx = 0.0f;
 
     if (server->move_left)
-        dx -= speed * delta_time;
+        dx -= PLAYER_SPEED;
     if (server->move_right)
-        dx += speed * delta_time;
+        dx += PLAYER_SPEED;
 
-    if (dx == 0.0f)
-        return;
+    wayterra_sprite_t *player = &server->game.player.sprite;
+    // //
+    // player->enableAnimation = (dx != 0.0f);
+    //
+    // if (dx < 0.0f)
+    //     player->inverted = true;
+    // else if (dx > 0.0f)
+    //     player->inverted = false;
+    //
+    // if (dx == 0.0f)
+    //     return;
 
-    server->game.player.x += dx;
+    server->game.player.sprite.x += dx;
     server->game.backgroundX -= dx;
 
     struct wayterra_toplevel *toplevel;
 
     wl_list_for_each(toplevel, &server->toplevels, link) {
         wlr_scene_node_set_position(
-                &toplevel->scene_tree->node,
-                toplevel->scene_tree->node.x - dx,
-                toplevel->scene_tree->node.y
-                );
+            &toplevel->scene_tree->node,
+            toplevel->scene_tree->node.x - dx,
+            toplevel->scene_tree->node.y
+        );
     }
 }
 
@@ -353,7 +361,23 @@ void output_frame(struct wl_listener *listener, void *data) {
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, r->fbo);
+        
 
+        // TODO add depth buffer to fbo
+        // GLint depthType = GL_NONE;
+        //
+        // glGetFramebufferAttachmentParameteriv(
+        //         GL_FRAMEBUFFER,
+        //         GL_DEPTH_ATTACHMENT,
+        //         GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+        //         &depthType
+        //         );
+        //
+        // if (depthType == GL_NONE) {
+        //     wlr_log(WLR_ERROR, "Game FBO has NO depth attachment");
+        // } else {
+        //     wlr_log(WLR_INFO, "Game FBO depth attachment type: 0x%x", depthType);
+        // }
         GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
         if (status != GL_FRAMEBUFFER_COMPLETE) {
             wlr_log(WLR_ERROR, "Game FBO is incomplete: 0x%x", status);
@@ -368,7 +392,7 @@ void output_frame(struct wl_listener *listener, void *data) {
             server->last_frame_time = current_time;
             server->frame_time_initialized = true;
 
-            update_movement(server, (float)delta_time);
+            update_movement(server);
             game_update(&server->game, (float)delta_time);
             renderer_draw_frame( r, &server->game, game_buffer->width, game_buffer->height);
         }

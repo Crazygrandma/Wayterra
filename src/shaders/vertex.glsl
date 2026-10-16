@@ -3,11 +3,12 @@ attribute vec2 aUV;
 
 uniform mat4 uProjection;
 uniform mat4 uModel;
+uniform mat4 uView;
 
 varying vec2 vUV;
 
 void main()
 {
-    gl_Position = uProjection * uModel * vec4(aPos, 0.0, 1.0);
+    gl_Position = uProjection * uView * uModel * vec4(aPos, 0.0, 1.0);
     vUV = aUV;
 }

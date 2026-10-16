@@ -3,6 +3,7 @@
 #define WAYTERRA_GAME_H
 
 #include <stdbool.h>
+#include <sprite.h>
 #include <GLES2/gl2.h>
 
 typedef struct {
@@ -18,24 +19,27 @@ typedef struct {
     float cellWidth;
     float cellHeight;
     float timeToNextFrame;
-} AnimatedSprite;
+    bool enableAnimation;
+    bool inverted;
+} animated_sprite_t;
+
 
 typedef struct {
-    AnimatedSprite sprite;
     float x;
     float y;
-    float width;
-    float height;
+
+    wayterra_sprite_t sprite;
 } wayterra_player_t;
 
 typedef struct {
-    wayterra_player_t player;
-    Sprite logo;
-
+    wayterra_player_t player; 
+    wayterra_sprite_t fireplace; 
+    wayterra_sprite_t ground; 
     float backgroundX;
 
     double timer;
     double last_time;
+    bool movement_mode;
 } wayterra_game_t;
 
 void game_init(wayterra_game_t *game);

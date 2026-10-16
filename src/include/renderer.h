@@ -4,32 +4,42 @@
 
 #include <stdbool.h>
 #include <GLES2/gl2.h>
-
 #include "game.h"
 
-// Sprite Shader
 typedef struct {
     GLuint program;
     GLint posLoc;
     GLint uvLoc;
-    GLint textureLoc;
-    GLint loc_animate;
-    GLint timeLoc;
 
     GLint projectionLoc;
     GLint modelLoc;
-} wayterra_shader_t;
+    GLint viewLoc;
+} sprite_shader_base_t;
+
+// Sprite Shader
+typedef struct {
+    sprite_shader_base_t base;
+    GLint textureLoc;
+} sprite_shader_t;
+
+typedef struct {
+    sprite_shader_base_t base;
+    GLint loc_animationTexture;
+    GLint loc_animate;
+    GLint loc_time;
+    GLint loc_inverted;
+} animated_sprite_shader_t;
+
 
 typedef struct wayterra_renderer {
     GLuint vbo;
     GLuint fbo;
 
-    wayterra_shader_t spriteShader;
+    sprite_shader_t spriteShader;
+    animated_sprite_shader_t animatedSpriteShader;
    
     GLint backgroundTexture;
-    bool shader_initialized;
-    float vertices[24];
-    float playerVerts[24];
+    bool initialized;
 } wayterra_renderer_t;
 
 void initialize_renderer( wayterra_renderer_t *r, wayterra_game_t *game, int width, int height);

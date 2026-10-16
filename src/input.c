@@ -88,23 +88,34 @@ static bool handle_keybinding(wayterra_keyboard_t *keyboard, wayterra_server_t *
 	case XKB_KEY_Return:
 		spawn_client("alacritty");   // change to your terminal
 		break;
-	case XKB_KEY_q:
-	case XKB_KEY_Q: {
-		/* Kill the currently focused client: look up the seat's
-		 * keyboard-focused surface and ask its toplevel to close. */
-		struct wlr_surface *focused =
-			server->seat->keyboard_state.focused_surface;
-		if (focused == NULL) {
-			break;
-		}
-		struct wlr_xdg_toplevel *xdg_toplevel =
-			wlr_xdg_toplevel_try_from_wlr_surface(focused);
-		if (xdg_toplevel == NULL) {
-			break;
-		}
-		wlr_xdg_toplevel_send_close(xdg_toplevel);
+	case XKB_KEY_r:
+	case XKB_KEY_R:
+		spawn_client("obs");   // change to your terminal
 		break;
-	}
+	case XKB_KEY_b:
+	case XKB_KEY_B:
+		spawn_client("firefox-developer-edition");   // change to your terminal
+		break;
+    case XKB_KEY_q:
+    case XKB_KEY_Q:
+        struct wlr_surface *focused =
+            server->seat->keyboard_state.focused_surface;
+
+        if (focused == NULL) {
+            break;
+        }
+
+        struct wlr_xdg_toplevel *xdg_toplevel =
+            wlr_xdg_toplevel_try_from_wlr_surface(focused);
+
+        if (xdg_toplevel == NULL) {
+            break;
+        }
+
+        server->game.movement_mode = true;
+
+        wlr_xdg_toplevel_send_close(xdg_toplevel);
+        break;
 	default:
 		return false;
 	}
@@ -162,36 +173,43 @@ static void wayterra_handle_key(
     uint32_t modifiers =
         wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 
-    // TODO figure out why XKB_KEY Tab 
-    if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-        for (int i = 0; i < nsyms; i++) {
-            if (syms[i] == XKB_KEY_Tab) {
-                handled = handle_keybinding(keyboard, server, syms[i]);
+    if (!handled && server->game.movement_mode) {
+        if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+            for (int i = 0; i < nsyms; i++) {
+                switch (syms[i]) {
+                    case XKB_KEY_a:
+                    case XKB_KEY_A:
+                        server->move_left = true;
+                        handled = true;
+                        break;
+
+                    case XKB_KEY_d:
+                    case XKB_KEY_D:
+                        server->move_right = true;
+                        handled = true;
+                        break;
+                }
+            }
+        } else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
+            for (int i = 0; i < nsyms; i++) {
+                switch (syms[i]) {
+                    case XKB_KEY_a:
+                    case XKB_KEY_A:
+                        server->move_left = false;
+                        handled = true;
+                        break;
+
+                    case XKB_KEY_d:
+                    case XKB_KEY_D:
+                        server->move_right = false;
+                        handled = true;
+                        break;
+                }
             }
         }
     }
-    // TODO rewrite input handle with config and better haneld var 
-    if (!handled) {
-        for (int i = 0; i < nsyms; i++) {
-            switch (syms[i]) {
-                case XKB_KEY_h:
-                case XKB_KEY_H:
-                    server->move_right =
-                        event->state == WL_KEYBOARD_KEY_STATE_PRESSED;
-                    handled = true;
-                    break;
 
-                case XKB_KEY_l:
-                case XKB_KEY_L:
-                    server->move_left =
-                        event->state == WL_KEYBOARD_KEY_STATE_PRESSED;
-                    handled = true;
-                    break;
-            }
-        }
-    }
-
-    /* Normal compositor keybindings (only when movement mode is OFF) */
+    /* Normal compositor keybindings */
     if (!handled &&
         (modifiers & MODIFIER_KEY) &&
         event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
@@ -233,8 +251,6 @@ void wayterra_new_keyboard(wayterra_server_t *server, struct wlr_input_device *d
 
     keyboard->server = server;
     keyboard->wlr_keyboard = wlr_keyboard;
-
-    keyboard->movement_mode = false;
 
     // --- XKB keymap setup ---
     printf("[keyboard] creating xkb context\n");
