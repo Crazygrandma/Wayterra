@@ -295,20 +295,21 @@ static void update_movement(wayterra_server_t *server)
     if (server->move_right)
         dx += PLAYER_SPEED;
 
-    wayterra_sprite_t *player = &server->game.player.sprite;
-    // //
-    // player->enableAnimation = (dx != 0.0f);
+    // animated_sprite_t *player = &server->game.player;
     //
-    // if (dx < 0.0f)
-    //     player->inverted = true;
-    // else if (dx > 0.0f)
-    //     player->inverted = false;
-    //
-    // if (dx == 0.0f)
-    //     return;
+    // if (dx != 0.0f) {
+    //     // Walk animation lives in row 1 with 8 frames
+    //     player->animation.row = 1;
+    //     player->animation.frameCount = 8;
+    //     // Mirror the sprite when walking to the left
+    //     player->sprite.inverted = (dx < 0.0f);
+    // } else {
+    //     // Back to idle: row 0, single frame (keeps last facing)
+    //     player->animation.row = 0;
+    //     player->animation.frameCount = 1;
+    // }
 
-    server->game.player.sprite.x += dx;
-    server->game.backgroundX -= dx;
+    server->game.playerX += dx;
 
     struct wayterra_toplevel *toplevel;
 

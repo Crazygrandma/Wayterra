@@ -26,34 +26,45 @@ void init_animated_sprite_shader(animated_sprite_shader_t *shader){
     shader->loc_time = glGetUniformLocation(shader->base.program, "uTime");
     shader->loc_inverted = glGetUniformLocation(shader->base.program, "uInverted");
 
+    shader->loc_row = glGetUniformLocation(shader->base.program, "uRow");
+    shader->loc_rowCount = glGetUniformLocation(shader->base.program, "uRowCount");
+    shader->loc_frameCount = glGetUniformLocation(shader->base.program, "uFrameCount");
+    shader->loc_timePerFrame = glGetUniformLocation(shader->base.program, "uTimePerFrame");
+    shader->loc_cellWidthUV = glGetUniformLocation(shader->base.program, "uCellWidthUV");
+
+
 }
 
 static void draw_animated_sprite(
     wayterra_renderer_t *r,
     animated_sprite_shader_t *shader,
-    const wayterra_sprite_t *sprite)
+    const transform_t *transform,
+    const sprite_t *sprite,
+    const animation_t *animation)
 {
     if (sprite->texture == 0) {
         return;
     }
 
+    // Model matrix
     mat4 model;
     glm_mat4_identity(model);
-    //
+
     vec3 position = {
-        sprite->x,
-        sprite->y,
-        0.1f
+        transform->x,
+        transform->y,
+        transform->z
     };
-    //
+
     vec3 scale = {
-        sprite->width,
-        sprite->height,
+        transform->width,
+        transform->height,
         1.0f
     };
+
     glm_translate(model, position);
     glm_scale(model, scale);
-    //
+
     glUniformMatrix4fv(
         shader->base.modelLoc,
         1,
@@ -61,9 +72,32 @@ static void draw_animated_sprite(
         (const GLfloat *)model
     );
 
+    // Sprite texture
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, sprite->texture);
     glUniform1i(shader->loc_animationTexture, 0);
+
+    // Animation parameters
+    glUniform1f(shader->loc_row, (GLfloat)animation->row);
+    glUniform1f(shader->loc_rowCount, (GLfloat)animation->rowCount);
+    glUniform1f(shader->loc_frameCount, (GLfloat)animation->frameCount);
+    glUniform1f(
+        shader->loc_timePerFrame,
+        animation->timeToNextFrame
+    );
+
+    glUniform1i(
+        shader->loc_inverted,
+        sprite->inverted ? GL_TRUE : GL_FALSE
+    );
+
+    // Horizontal cell size in UV space
+    float cellWidthUV =
+        animation->sheetWidth > 0.0f
+            ? animation->cellWidth / animation->sheetWidth
+            : 1.0f;
+
+    glUniform1f(shader->loc_cellWidthUV, cellWidthUV);
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
@@ -106,17 +140,19 @@ void animated_sprite_renderer_draw(
     mat4 view;
     glm_mat4_identity(view);
 
+
+    //TODO CHANGELATER added camera offset
+    float camera_x_offset = -700.0f;
+    float camera_y_offset = 400.0f;
+
     vec3 camera_offset = {
-        width / 2.0f - game->player.sprite.x
-            - game->player.sprite.width / 2.0f,
-
-        height / 2.0f - game->player.sprite.y
-            - game->player.sprite.height / 2.0f,
-
+        width / 2.0f - game->playerX - camera_x_offset,
+        height / 2.0f - game->playerY - camera_y_offset,
         0.0f
     };
 
     glm_translate(view, camera_offset);
+
 
     glUniformMatrix4fv(
         animatedShader->base.viewLoc,
@@ -127,8 +163,18 @@ void animated_sprite_renderer_draw(
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    // Draw sprites
-    draw_animated_sprite(r, animatedShader, &game->fireplace);
+    // Draw animated sprites
+    for (size_t i = 0; i < game->animated_count; i++) {
+        animated_sprite_t *object = &game->animated_objects[i];
+
+        draw_animated_sprite(
+                r,
+                &r->animatedSpriteShader,
+                &object->transform,
+                &object->sprite,
+                &object->animation
+                );
+    }
     glDisableVertexAttribArray(animatedShader->base.posLoc);
 
     glDisableVertexAttribArray(animatedShader->base.uvLoc);

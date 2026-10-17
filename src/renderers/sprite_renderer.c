@@ -26,29 +26,32 @@ void init_sprite_shader(sprite_shader_t *shader){
 static void draw_sprite(
     wayterra_renderer_t *r,
     sprite_shader_t *shader,
-    const wayterra_sprite_t *sprite)
+    const transform_t *transform,
+    const sprite_t *sprite)
 {
     if (sprite->texture == 0) {
         return;
     }
 
+    // Model matrix
     mat4 model;
     glm_mat4_identity(model);
-    //
+
     vec3 position = {
-        sprite->x,
-        sprite->y,
-        sprite->z
+        transform->x,
+        transform->y,
+        transform->z
     };
-    //
+
     vec3 scale = {
-        sprite->width,
-        sprite->height,
+        transform->width,
+        transform->height,
         1.0f
     };
+
     glm_translate(model, position);
     glm_scale(model, scale);
-    //
+
     glUniformMatrix4fv(
         shader->base.modelLoc,
         1,
@@ -56,6 +59,7 @@ static void draw_sprite(
         (const GLfloat *)model
     );
 
+    // Sprite texture
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, sprite->texture);
     glUniform1i(shader->textureLoc, 0);
@@ -96,12 +100,8 @@ void sprite_renderer_draw(
     glm_mat4_identity(view);
 
     vec3 camera_offset = {
-        width / 2.0f - game->player.sprite.x
-            - game->player.sprite.width / 2.0f,
-
-        height / 2.0f - game->player.sprite.y
-            - game->player.sprite.height / 2.0f,
-
+        width / 2.0f - game->playerX,
+        height / 2.0f - game->playerY,
         0.0f
     };
 
@@ -116,9 +116,19 @@ void sprite_renderer_draw(
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    // Draw sprites
-    draw_sprite(r, shader, &game->player.sprite);
-    // draw_sprite(r, shader, &game->ground);
+
+    // Draw regular sprites
+    for (size_t i = 0; i < game->sprite_count; i++) {
+        game_sprite_t *object = &game->sprites[i];
+
+        draw_sprite(
+                r,
+                &r->spriteShader,
+                &object->transform,
+                &object->sprite
+                );
+    }
+
     glDisableVertexAttribArray(shader->base.posLoc);
 
     glDisableVertexAttribArray(shader->base.uvLoc);

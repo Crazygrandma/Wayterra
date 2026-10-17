@@ -28,6 +28,11 @@ typedef struct {
     GLint loc_animate;
     GLint loc_time;
     GLint loc_inverted;
+    GLint loc_row;
+    GLint loc_rowCount;
+    GLint loc_frameCount;
+    GLint loc_timePerFrame;
+    GLint loc_cellWidthUV;
 } animated_sprite_shader_t;
 
 

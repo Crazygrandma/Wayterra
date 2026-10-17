@@ -5,37 +5,64 @@
 #include <stdbool.h>
 #include <sprite.h>
 #include <GLES2/gl2.h>
+#include <stddef.h>
 
-typedef struct {
-    GLuint texture;
-    float width;
-    float height;
-} Sprite;
-
-typedef struct {
-    GLuint texture;
-    float width;
-    float height;
-    float cellWidth;
-    float cellHeight;
-    float timeToNextFrame;
-    bool enableAnimation;
-    bool inverted;
-} animated_sprite_t;
-
+#define MAX_GAME_OBJECTS 256
 
 typedef struct {
     float x;
     float y;
+    float z;
 
-    wayterra_sprite_t sprite;
-} wayterra_player_t;
+    float width;
+    float height;
+} transform_t;
 
 typedef struct {
-    wayterra_player_t player; 
-    wayterra_sprite_t fireplace; 
-    wayterra_sprite_t ground; 
-    float backgroundX;
+    const char *texturePath;
+    GLuint texture;
+    bool inverted;
+} sprite_t;
+
+typedef struct {
+    int row;
+    int rowCount;
+    int frameCount;
+
+    float cellWidth;
+    float cellHeight;
+    float sheetWidth;
+    float sheetHeight;
+
+    int currentFrame;
+    float timeToNextFrame;
+
+    bool enabled;
+} animation_t;
+
+typedef struct {
+    transform_t transform;
+    sprite_t sprite;
+} game_sprite_t;
+
+// Same params as wayterra_sprite_t, plus animation state
+typedef struct {
+    transform_t transform;
+    sprite_t sprite;
+    animation_t animation;
+} animated_sprite_t;
+
+#define MAX_GAME_OBJECTS 256
+
+typedef struct {
+    animated_sprite_t animated_objects[MAX_GAME_OBJECTS];
+    size_t animated_count;
+
+    game_sprite_t sprites[MAX_GAME_OBJECTS];
+    size_t sprite_count;
+
+    float playerX;
+    float playerY;
 
     double timer;
     double last_time;

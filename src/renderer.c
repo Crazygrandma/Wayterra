@@ -41,12 +41,29 @@ static void init_vertex_buffer(wayterra_renderer_t *r)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-static void init_textures( wayterra_renderer_t *r, wayterra_game_t *game) {
-    // r->backgroundTexture = load_texture("assets/background1.png");
-    game->player.sprite.texture = load_texture("assets/playeridle.png");
-    game->ground.texture = load_texture("assets/groundtest.png");
-    // 19 frames 304 x 32
-    game->fireplace.texture = load_texture("assets/campfireSpritesheet.png");
+static void init_textures(wayterra_renderer_t *r, wayterra_game_t *game)
+{
+    // Regular sprites
+    for (size_t i = 0; i < game->sprite_count; i++) {
+        sprite_t *sprite = &game->sprites[i].sprite;
+
+        if (sprite->texturePath == NULL) {
+            continue;
+        }
+
+        sprite->texture = load_texture(sprite->texturePath);
+    }
+
+    // Animated sprites
+    for (size_t i = 0; i < game->animated_count; i++) {
+        sprite_t *sprite = &game->animated_objects[i].sprite;
+
+        if (sprite->texturePath == NULL) {
+            continue;
+        }
+
+        sprite->texture = load_texture(sprite->texturePath);
+    }
 }
 
 void initialize_renderer(
@@ -96,7 +113,7 @@ void renderer_draw_frame(
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
-    glClearColor(0.35f, 0.45f, 0.75f, 1.0f);
+    glClearColor(0.12f, 0.16f, 0.30f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     animated_sprite_renderer_draw(r, game, width, height);
     sprite_renderer_draw(r, game, width, height);
