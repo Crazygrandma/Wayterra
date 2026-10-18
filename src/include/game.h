@@ -6,7 +6,8 @@
 #include <sprite.h>
 #include <GLES2/gl2.h>
 #include <stddef.h>
-
+#include <xkbcommon/xkbcommon.h>
+#include <wayland-server-protocol.h>
 #define MAX_GAME_OBJECTS 256
 
 typedef struct {
@@ -58,6 +59,8 @@ typedef struct {
     animated_sprite_t animated_objects[MAX_GAME_OBJECTS];
     size_t animated_count;
 
+
+    animated_sprite_t *player;
     game_sprite_t sprites[MAX_GAME_OBJECTS];
     size_t sprite_count;
 
@@ -67,9 +70,16 @@ typedef struct {
     double timer;
     double last_time;
     bool movement_mode;
+
+    bool move_right;
+    bool move_left;
+
+    bool move_up;
+    bool move_down;
 } wayterra_game_t;
 
 void game_init(wayterra_game_t *game);
 void game_update(wayterra_game_t *game, float delta_time);
 
+bool game_handle_key( wayterra_game_t *game, xkb_keysym_t key, enum wl_keyboard_key_state state);
 #endif

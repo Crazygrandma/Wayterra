@@ -13,7 +13,7 @@
 #include "input.h"      // wayterra_keyboard_t, desktop_toplevel_at(); pulls in wayland-server-core.h, wlr_seat.h, wlr_input_device.h
 #include "server.h"     // wayterra_server_t, wayterra_output_t, wlr_scene.h, wlr_xdg_shell.h
 #include "pointer.h"    // server_new_pointer()
-
+#include "game.h"
 struct xkb_rule_names rules = {
     .layout = USER_KEYMAP,
 };
@@ -112,6 +112,7 @@ static bool handle_keybinding(wayterra_keyboard_t *keyboard, wayterra_server_t *
             break;
         }
 
+        // Enable player movement and client movement
         server->game.movement_mode = true;
 
         wlr_xdg_toplevel_send_close(xdg_toplevel);
@@ -148,80 +149,75 @@ void wayterra_handle_modifiers(struct wl_listener *listener, void *data) {
     );
 }
 
-
 static void wayterra_handle_key(
-        struct wl_listener *listener, void *data) {
-    /* This event is raised when a key is pressed or released. */
+        struct wl_listener *listener, void *data)
+{
     wayterra_keyboard_t *keyboard =
         wl_container_of(listener, keyboard, key);
+
     wayterra_server_t *server = keyboard->server;
-    wayterra_output_t *output =
-        wl_container_of(server->outputs.next, output, link);
 
     struct wlr_keyboard_key_event *event = data;
     struct wlr_seat *seat = server->seat;
 
-    /* Translate libinput keycode -> xkbcommon */
+    /* Translate Linux keycode to XKB keycode. */
     uint32_t keycode = event->keycode + 8;
 
-    /* Get a list of keysyms based on the keymap for this keyboard */
+    /* Get keysyms for the active keyboard layout. */
     const xkb_keysym_t *syms;
     int nsyms = xkb_state_key_get_syms(
-        keyboard->wlr_keyboard->xkb_state, keycode, &syms);
+        keyboard->wlr_keyboard->xkb_state,
+        keycode,
+        &syms
+    );
 
-    bool handled = false;
     uint32_t modifiers =
         wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 
-    if (!handled && server->game.movement_mode) {
-        if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-            for (int i = 0; i < nsyms; i++) {
-                switch (syms[i]) {
-                    case XKB_KEY_a:
-                    case XKB_KEY_A:
-                        server->move_left = true;
-                        handled = true;
-                        break;
+    bool handled = false;
 
-                    case XKB_KEY_d:
-                    case XKB_KEY_D:
-                        server->move_right = true;
-                        handled = true;
-                        break;
-                }
-            }
-        } else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
-            for (int i = 0; i < nsyms; i++) {
-                switch (syms[i]) {
-                    case XKB_KEY_a:
-                    case XKB_KEY_A:
-                        server->move_left = false;
-                        handled = true;
-                        break;
-
-                    case XKB_KEY_d:
-                    case XKB_KEY_D:
-                        server->move_right = false;
-                        handled = true;
-                        break;
-                }
+    /*
+     * Route input to the game when game movement is enabled.
+     */
+    if (server->game.movement_mode) {
+        for (int i = 0; i < nsyms; i++) {
+            if (game_handle_key(
+                    &server->game,
+                    syms[i],
+                    event->state)) {
+                handled = true;
             }
         }
     }
 
-    /* Normal compositor keybindings */
+    /*
+     * Normal compositor keybindings.
+     * Only process key presses, not releases.
+     */
     if (!handled &&
         (modifiers & MODIFIER_KEY) &&
         event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 
         for (int i = 0; i < nsyms; i++) {
-            handled = handle_keybinding(keyboard, server, syms[i]);
+            if (handle_keybinding(
+                    keyboard,
+                    server,
+                    syms[i])) {
+                handled = true;
+                break;
+            }
         }
     }
 
-    /* Pass through to client if not handled */
+    /*
+     * Forward unhandled events to the focused Wayland client.
+     */
     if (!handled) {
-        wlr_seat_set_keyboard(seat, keyboard->wlr_keyboard);
+        wlr_seat_set_keyboard(
+            seat,
+            keyboard->wlr_keyboard
+        );
+
         wlr_seat_keyboard_notify_key(
             seat,
             event->time_msec,

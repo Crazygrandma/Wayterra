@@ -89,8 +89,8 @@ typedef struct wayterra_server {
     bool frame_time_initialized;
 
 
-    bool move_left;
-    bool move_right;
+    // bool move_left;
+    // bool move_right;
 
     /* True while MODIFIER_KEY is held down. Updated by the keyboard
      * handler in input.c, readable from any file that has the server. */

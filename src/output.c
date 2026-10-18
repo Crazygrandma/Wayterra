@@ -289,35 +289,31 @@ void server_new_output(struct wl_listener *listener, void *data) {
 static void update_movement(wayterra_server_t *server)
 {
     float dx = 0.0f;
+    float dy = 0.0f;
 
-    if (server->move_left)
+    if (server->game.move_left)
         dx -= PLAYER_SPEED;
-    if (server->move_right)
+    if (server->game.move_right)
         dx += PLAYER_SPEED;
 
-    // animated_sprite_t *player = &server->game.player;
-    //
-    // if (dx != 0.0f) {
-    //     // Walk animation lives in row 1 with 8 frames
-    //     player->animation.row = 1;
-    //     player->animation.frameCount = 8;
-    //     // Mirror the sprite when walking to the left
-    //     player->sprite.inverted = (dx < 0.0f);
-    // } else {
-    //     // Back to idle: row 0, single frame (keeps last facing)
-    //     player->animation.row = 0;
-    //     player->animation.frameCount = 1;
-    // }
+    if (server->game.move_up)
+        dy += PLAYER_SPEED;
+    if (server->game.move_down)
+        dy -= PLAYER_SPEED;
 
-    server->game.playerX += dx;
+    // Move the player in the game world.
+    server->game.player->transform.x += dx;
+    server->game.player->transform.y += dy;
 
+    // Move clients in the opposite direction to simulate
+    // the world moving with the player.
     struct wayterra_toplevel *toplevel;
 
     wl_list_for_each(toplevel, &server->toplevels, link) {
         wlr_scene_node_set_position(
             &toplevel->scene_tree->node,
             toplevel->scene_tree->node.x - dx,
-            toplevel->scene_tree->node.y
+            toplevel->scene_tree->node.y + dy
         );
     }
 }
@@ -392,7 +388,9 @@ void output_frame(struct wl_listener *listener, void *data) {
 
             server->last_frame_time = current_time;
             server->frame_time_initialized = true;
+                
 
+            
             update_movement(server);
             game_update(&server->game, (float)delta_time);
             renderer_draw_frame( r, &server->game, game_buffer->width, game_buffer->height);
