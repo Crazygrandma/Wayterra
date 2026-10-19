@@ -65,6 +65,17 @@ static void init_textures(wayterra_renderer_t *r, wayterra_game_t *game)
 
         sprite->texture = load_texture(sprite->texturePath);
     }
+
+    // Tilemaps
+    for (size_t i = 0; i < game->tilemap_count; i++) {
+        sprite_t *sprite = &game->tilemaps[i].sprite;
+
+        if (sprite->texturePath == NULL) {
+            continue;
+        }
+
+        sprite->texture = load_texture(sprite->texturePath);
+    }
 }
 
 void initialize_renderer(
@@ -118,7 +129,8 @@ void renderer_draw_frame(
     glDepthFunc(GL_LESS);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    animated_sprite_renderer_draw(r, game, width, height);
-    sprite_renderer_draw(r, game, width, height);
+
     tilemap_renderer_draw(r, game, width, height);
+    // sprite_renderer_draw(r, game, width, height);
+    animated_sprite_renderer_draw(r, game, width, height);
 }

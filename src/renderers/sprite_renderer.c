@@ -100,13 +100,18 @@ void sprite_renderer_draw(
     glm_mat4_identity(view);
 
     vec3 camera_offset = {
-        width / 2.0f - game->player->transform.x,
-        height / 2.0f - game->player->transform.y,
+        width / 2.0f
+            - game->player->transform.x
+            - game->player->transform.width / 2.0f,
+
+        height / 2.0f
+            - game->player->transform.y
+            - game->player->transform.height / 2.0f,
+
         0.0f
     };
 
     glm_translate(view, camera_offset);
-
     glUniformMatrix4fv(
         shader->base.viewLoc,
         1,

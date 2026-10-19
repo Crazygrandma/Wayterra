@@ -116,6 +116,24 @@ static game_sprite_t *game_add_sprite(
     return object;
 }
 
+static tilemap_sprite_t *game_add_tilemap(
+    wayterra_game_t *game,
+    transform_t transform,
+    sprite_t sprite)
+{
+    if (game->tilemap_count >= MAX_GAME_OBJECTS) {
+        return NULL;
+    }
+
+    tilemap_sprite_t *object =
+        &game->tilemaps[game->tilemap_count++];
+
+    object->transform = transform;
+    object->sprite = sprite;
+
+    return object;
+}
+
 static double get_time(void)
 {
     struct timespec ts;
@@ -137,8 +155,8 @@ void game_init(wayterra_game_t *game)
     game->player = game_add_animated_sprite(
         game,
         (transform_t){
-            .x = 100.0f,
-            .y = 100.0f,
+            .x = 0.0f,
+            .y = 0.0f,
             .z = 0.0f,
             .width = 40.0f * scale,
             .height = 40.0f * scale,
@@ -164,14 +182,16 @@ void game_init(wayterra_game_t *game)
 
 
     // Adding tilemap
-    game_add_sprite(
+    // The renderer stretches the texture over the whole screen for now,
+    // so width/height are unused until real tiles are implemented.
+    game_add_tilemap(
         game,
         (transform_t){
-            .x = 100.0f,
-            .y = 100.0f,
+            .x = 0.0f,
+            .y = 0.0f,
             .z = 0.0f,
-            .width = 64.0f * scale,
-            .height = 32.0f * scale,
+            .width = 0.0f,
+            .height = 0.0f,
         },
         (sprite_t){
             .texturePath = "assets/tilemapsand.png",

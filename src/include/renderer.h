@@ -38,7 +38,7 @@ typedef struct {
 typedef struct{
     sprite_shader_base_t base;
     GLint textureLoc;
-    GLint loc_tile_id;
+    GLint tile_id_loc;
 } tilemap_shader_t;
 
 typedef struct wayterra_renderer {

@@ -22,20 +22,23 @@ void init_tilemap_shader(tilemap_shader_t *shader){
     shader->base.viewLoc = glGetUniformLocation(shader->base.program, "uView");
     shader->base.modelLoc = glGetUniformLocation(shader->base.program, "uModel");
 
-    shader->loc_tile_id = glGetUniformLocation(shader->base.program, "tileId");
+    shader->tile_id_loc = glGetUniformLocation(shader->base.program, "tileId");
 }
 
-static void draw_sprite(
-    wayterra_renderer_t *r,
-    sprite_shader_t *shader,
-    const transform_t *transform,
-    const sprite_t *sprite)
+
+static void draw_tilemap(
+        wayterra_renderer_t *r,
+        tilemap_shader_t *shader,
+        const transform_t *transform,
+        const sprite_t *sprite,
+        int width,
+        int height)
 {
     if (sprite->texture == 0) {
         return;
     }
 
-    // Model matrix
+    // Model matrix: stretch the unit quad to the full screen.
     mat4 model;
     glm_mat4_identity(model);
 
@@ -46,8 +49,8 @@ static void draw_sprite(
     };
 
     vec3 scale = {
-        transform->width,
-        transform->height,
+        (float)width,
+        (float)height,
         1.0f
     };
 
@@ -61,7 +64,7 @@ static void draw_sprite(
         (const GLfloat *)model
     );
 
-    // Sprite texture
+    // Tilemap texture
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, sprite->texture);
     glUniform1i(shader->textureLoc, 0);
@@ -80,6 +83,7 @@ void tilemap_renderer_draw(
     glUseProgram(shader->base.program);
     setup_vertex_attributes(r, &shader->base);
 
+    glUniform1f(shader->tile_id_loc, 1.0f);
     // Projection matrix
     mat4 projection;
 
@@ -97,17 +101,10 @@ void tilemap_renderer_draw(
         (const GLfloat *)projection
     );
 
-    // View matrix
+    // View matrix: identity, the tilemap is drawn in screen space for now
+    // and should not follow the camera.
     mat4 view;
     glm_mat4_identity(view);
-
-    vec3 camera_offset = {
-        width / 2.0f - game->player->transform.x,
-        height / 2.0f - game->player->transform.y,
-        0.0f
-    };
-
-    glm_translate(view, camera_offset);
 
     glUniformMatrix4fv(
         shader->base.viewLoc,
@@ -119,17 +116,24 @@ void tilemap_renderer_draw(
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // // Draw regular sprites
-    // for (size_t i = 0; i < game->sprite_count; i++) {
-    //     game_sprite_t *object = &game->sprites[i];
-    //
-    //     draw_sprite(
-    //             r,
-    //             &r->spriteShader,
-    //             &object->transform,
-    //             &object->sprite
-    //             );
-    // }
+    // The tilemap is the background layer, so it must not write depth
+    // (it would occlude everything drawn after it at the same z).
+    glDisable(GL_DEPTH_TEST);
+
+    for (size_t i = 0; i < game->tilemap_count; i++) {
+        tilemap_sprite_t *object = &game->tilemaps[i];
+
+        draw_tilemap(
+                r,
+                shader,
+                &object->transform,
+                &object->sprite,
+                width,
+                height
+                );
+    }
+
+    glEnable(GL_DEPTH_TEST);
 
     glDisableVertexAttribArray(shader->base.posLoc);
 

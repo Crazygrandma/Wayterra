@@ -8,9 +8,12 @@ uniform float tileId;
 
 void main()
 {
-    vec2 uv = vUV;
+    float tileHeight = 0.5;
 
-    // Each tile occupies half the texture width.
-    uv.x = (uv.x + tileId) / 2.0;
+    vec2 uv = vec2(
+        vUV.x,
+        (1.0 - vUV.y) * tileHeight + tileId * tileHeight
+    );
+
     gl_FragColor = texture2D(tilemapTexture, uv);
 }

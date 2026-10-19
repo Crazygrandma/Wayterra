@@ -141,13 +141,16 @@ void animated_sprite_renderer_draw(
     glm_mat4_identity(view);
 
 
-    //TODO CHANGELATER added camera offset
-    float camera_x_offset = 0.f;
-    float camera_y_offset = 0.0f;
 
     vec3 camera_offset = {
-        width / 2.0f - game->player->transform.x - camera_x_offset,
-        height / 2.0f - game->player->transform.y - camera_y_offset,
+        width / 2.0f
+            - game->player->transform.x
+            - game->player->transform.width / 2.0f,
+
+        height / 2.0f
+            - game->player->transform.y
+            - game->player->transform.height / 2.0f,
+
         0.0f
     };
 
