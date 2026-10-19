@@ -125,7 +125,8 @@ void setup(wayterra_server_t *server)
 	 * Xcursor themes to source cursor images from and makes sure that cursor
 	 * images are available at all scale factors on the screen (necessary for
 	 * HiDPI support). */
-	server->cursor_mgr = wlr_xcursor_manager_create(NULL, 24);
+	server->cursor_mgr = wlr_xcursor_manager_create("Bibata-Modern-Ice", 24);
+    wlr_xcursor_manager_load(server->cursor_mgr, 1);
 
 	server->cursor_mode = WAYTERRA_CURSOR_PASSTHROUGH;
 	server->cursor_motion.notify = server_cursor_motion;

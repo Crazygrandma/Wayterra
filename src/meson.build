@@ -30,6 +30,7 @@ executable(
   'utils/renderer_utils.c',
   'renderers/sprite_renderer.c',
   'renderers/animated_sprite_renderer.c',
+  'renderers/tilemap_renderer.c',
   dependencies: [
     wlroots,
     wayland_server,

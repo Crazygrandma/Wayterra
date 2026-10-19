@@ -163,34 +163,23 @@ void game_init(wayterra_game_t *game)
     );
 
 
-    // Fireplace.
-    game_add_animated_sprite(
+    // Adding tilemap
+    game_add_sprite(
         game,
         (transform_t){
-            .x = 0.0f,
+            .x = 100.0f,
             .y = 100.0f,
-            .z = 0.2f,
-            .width = 16.0f * scale,
+            .z = 0.0f,
+            .width = 64.0f * scale,
             .height = 32.0f * scale,
         },
         (sprite_t){
-            .texturePath = "assets/campfireSpritesheet.png",
+            .texturePath = "assets/tilemapsand.png",
             .texture = 0,
             .inverted = false,
-        },
-        (animation_t){
-            .row = 0,
-            .rowCount = 1,
-            .frameCount = 18,
-            .cellWidth = 16.0f,
-            .cellHeight = 32.0f,
-            .sheetWidth = 304.0f,
-            .sheetHeight = 32.0f,
-            .currentFrame = 0,
-            .timeToNextFrame = 0.1f,
-            .enabled = true,
         }
     );
+
 }
 
 void game_update(wayterra_game_t *game, float delta_time)

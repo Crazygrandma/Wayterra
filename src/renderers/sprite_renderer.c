@@ -4,7 +4,7 @@
 
 void init_sprite_shader(sprite_shader_t *shader){
 
-    shader->base.program = create_shader_program_from_files("shaders/vertex.glsl","shaders/fragment.glsl");
+    shader->base.program = create_shader_program_from_files("shaders/vertex.glsl","shaders/sprite.glsl");
 
     if (!shader->base.program) {
         wlr_log(WLR_ERROR, "Failed to create shader program");

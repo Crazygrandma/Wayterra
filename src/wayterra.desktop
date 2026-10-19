@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Wayterra
+Comment=Wayland desktop environment
+Exec=/usr/local/bin/wayterra
+Type=Application
+DesktopNames=Wayterra

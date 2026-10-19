@@ -35,6 +35,11 @@ typedef struct {
     GLint loc_cellWidthUV;
 } animated_sprite_shader_t;
 
+typedef struct{
+    sprite_shader_base_t base;
+    GLint textureLoc;
+    GLint loc_tile_id;
+} tilemap_shader_t;
 
 typedef struct wayterra_renderer {
     GLuint vbo;
@@ -42,6 +47,7 @@ typedef struct wayterra_renderer {
 
     sprite_shader_t spriteShader;
     animated_sprite_shader_t animatedSpriteShader;
+    tilemap_shader_t tilemapShader;
    
     GLint backgroundTexture;
     bool initialized;

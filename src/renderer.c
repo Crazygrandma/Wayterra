@@ -4,6 +4,7 @@
 
 #include "renderers/sprite_renderer.h"
 #include "renderers/animated_sprite_renderer.h"
+#include "renderers/tilemap_renderer.h"
 
 /* Virtual screen size used by the ortho projection and the world quad */
 #define SCREEN_WIDTH  1920.0f
@@ -77,15 +78,17 @@ void initialize_renderer(
 
     init_sprite_shader(&r->spriteShader);
     init_animated_sprite_shader(&r->animatedSpriteShader);
+    init_tilemap_shader(&r->tilemapShader);
        
     if (!r->spriteShader.base.program) {
         return;
     }
-
     if (!r->animatedSpriteShader.base.program) {
         return;
     }
-
+    if (!r->tilemapShader.base.program) {
+        return;
+    }
     init_vertex_buffer(r);
     init_textures(r, game);
 
@@ -113,8 +116,9 @@ void renderer_draw_frame(
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
-    glClearColor(0.12f, 0.16f, 0.30f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     animated_sprite_renderer_draw(r, game, width, height);
     sprite_renderer_draw(r, game, width, height);
+    tilemap_renderer_draw(r, game, width, height);
 }
