@@ -193,22 +193,21 @@ void game_init(wayterra_game_t *game)
     for (int row = 0; row < TILE_ROWS; row++) {
         for (int col = 0; col < TILE_COLS; col++) {
             game_add_tile(
-                game,
-                (transform_t){
+                    game,
+                    (transform_t){
                     .x = col * TILE_SIZE,
-                    .y = row * TILE_SIZE,
+                    .y = -row * TILE_SIZE,
                     .z = 0.0f,
                     .width = TILE_SIZE,
                     .height = TILE_SIZE,
-                },
-                (sprite_t){
+                    },
+                    (sprite_t){
                     .texturePath = "assets/tilemapsand.png",
                     .texture = 0,
                     .inverted = false,
-                },
-                // tilemapsand.png holds two 32x32 tiles, so ids are 0/1.
-                (row + col) % 2
-            );
+                    },
+                    (row + col) % 4
+                    );
         }
     }
 

@@ -8,12 +8,17 @@ uniform float tileId;
 
 void main()
 {
-    float tileHeight = 0.5;
+    float tilesetSize = 2.0;
+    float tileSize = 1.0 / tilesetSize;
 
-    vec2 uv = vec2(
-        vUV.x,
-        (1.0 - vUV.y) * tileHeight + tileId * tileHeight
-    );
+    float column = mod(tileId, tilesetSize);
+    float row = floor(tileId / tilesetSize);
+
+    vec2 uv = vec2(vUV.x, 1.0 - vUV.y);
+    uv *= tileSize;
+
+    uv.x += column * tileSize;
+    uv.y += row * tileSize;
 
     gl_FragColor = texture2D(tilesetTexture, uv);
 }
