@@ -66,15 +66,14 @@ static void init_textures(wayterra_renderer_t *r, wayterra_game_t *game)
         sprite->texture = load_texture(sprite->texturePath);
     }
 
-    // Tilemaps
-    for (size_t i = 0; i < game->tilemap_count; i++) {
-        sprite_t *sprite = &game->tilemaps[i].sprite;
+    // Tiles: every tile samples the same tileset, so it is loaded once
+    // and shared by all of them.
+    if (game->tile_count > 0 && game->tiles[0].sprite.texturePath != NULL) {
+        GLuint tileset = load_texture(game->tiles[0].sprite.texturePath);
 
-        if (sprite->texturePath == NULL) {
-            continue;
+        for (size_t i = 0; i < game->tile_count; i++) {
+            game->tiles[i].sprite.texture = tileset;
         }
-
-        sprite->texture = load_texture(sprite->texturePath);
     }
 }
 

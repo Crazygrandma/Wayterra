@@ -53,12 +53,13 @@ typedef struct {
     animation_t animation;
 } animated_sprite_t;
 
-// A tilemap layer. For now it just carries a texture that is stretched
-// over the whole screen, later it will hold the tile grid.
+// A single tile of the tilemap. Every tile samples the same tileset
+// texture, `id` selects which tile of the tileset is drawn.
 typedef struct {
     transform_t transform;
     sprite_t sprite;
-} tilemap_sprite_t;
+    int id;
+} tile_t;
 
 #define MAX_GAME_OBJECTS 256
 
@@ -70,8 +71,8 @@ typedef struct {
     game_sprite_t sprites[MAX_GAME_OBJECTS];
     size_t sprite_count;
 
-    tilemap_sprite_t tilemaps[MAX_GAME_OBJECTS];
-    size_t tilemap_count;
+    tile_t tiles[MAX_GAME_OBJECTS];
+    size_t tile_count;
 
     float playerX;
     float playerY;

@@ -1,6 +1,11 @@
 #include "game.h"
 #include <time.h>
 
+// Screen covering tile grid (the view is 1920x1080 for now).
+#define TILE_SIZE 128.0f
+#define TILE_COLS 16
+#define TILE_ROWS 9
+
 static void game_update_player_animation(wayterra_game_t *game)
 {
     animated_sprite_t *player = game->player;
@@ -78,6 +83,26 @@ bool game_handle_key(
     }
 }
 
+
+static tile_t *game_add_tile(
+    wayterra_game_t *game,
+    transform_t transform,
+    sprite_t sprite,
+    int id)
+{
+    if (game->tile_count >= MAX_GAME_OBJECTS) {
+        return NULL;
+    }
+
+    tile_t *tile = &game->tiles[game->tile_count++];
+
+    tile->transform = transform;
+    tile->sprite = sprite;
+    tile->id = id;
+
+    return tile;
+}
+
 static animated_sprite_t *game_add_animated_sprite(
     wayterra_game_t *game,
     transform_t transform,
@@ -109,24 +134,6 @@ static game_sprite_t *game_add_sprite(
 
     game_sprite_t *object =
         &game->sprites[game->sprite_count++];
-
-    object->transform = transform;
-    object->sprite = sprite;
-
-    return object;
-}
-
-static tilemap_sprite_t *game_add_tilemap(
-    wayterra_game_t *game,
-    transform_t transform,
-    sprite_t sprite)
-{
-    if (game->tilemap_count >= MAX_GAME_OBJECTS) {
-        return NULL;
-    }
-
-    tilemap_sprite_t *object =
-        &game->tilemaps[game->tilemap_count++];
 
     object->transform = transform;
     object->sprite = sprite;
@@ -181,24 +188,29 @@ void game_init(wayterra_game_t *game)
     );
 
 
-    // Adding tilemap
-    // The renderer stretches the texture over the whole screen for now,
-    // so width/height are unused until real tiles are implemented.
-    game_add_tilemap(
-        game,
-        (transform_t){
-            .x = 0.0f,
-            .y = 0.0f,
-            .z = 0.0f,
-            .width = 0.0f,
-            .height = 0.0f,
-        },
-        (sprite_t){
-            .texturePath = "assets/tilemapsand.png",
-            .texture = 0,
-            .inverted = false,
+    // Individual tiles. All of them share one tileset texture, the id
+    // picks the tile inside the tileset.
+    for (int row = 0; row < TILE_ROWS; row++) {
+        for (int col = 0; col < TILE_COLS; col++) {
+            game_add_tile(
+                game,
+                (transform_t){
+                    .x = col * TILE_SIZE,
+                    .y = row * TILE_SIZE,
+                    .z = 0.0f,
+                    .width = TILE_SIZE,
+                    .height = TILE_SIZE,
+                },
+                (sprite_t){
+                    .texturePath = "assets/tilemapsand.png",
+                    .texture = 0,
+                    .inverted = false,
+                },
+                // tilemapsand.png holds two 32x32 tiles, so ids are 0/1.
+                (row + col) % 2
+            );
         }
-    );
+    }
 
 }
 

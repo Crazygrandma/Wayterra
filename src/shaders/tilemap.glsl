@@ -3,7 +3,7 @@ precision mediump float;
 
 varying vec2 vUV;
 
-uniform sampler2D tilemapTexture;
+uniform sampler2D tilesetTexture;
 uniform float tileId;
 
 void main()
@@ -15,5 +15,5 @@ void main()
         (1.0 - vUV.y) * tileHeight + tileId * tileHeight
     );
 
-    gl_FragColor = texture2D(tilemapTexture, uv);
+    gl_FragColor = texture2D(tilesetTexture, uv);
 }
