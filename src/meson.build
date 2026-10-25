@@ -31,6 +31,9 @@ executable(
   'renderers/sprite_renderer.c',
   'renderers/animated_sprite_renderer.c',
   'renderers/tilemap_renderer.c',
+  'game_objects.c',
+  'game_world.c',
+  'game_input.c',
   dependencies: [
     wlroots,
     wayland_server,

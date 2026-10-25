@@ -59,7 +59,7 @@ static void draw_animated_sprite(
     vec3 scale = {
         transform->width,
         transform->height,
-        1.0f
+        0.0f
     };
 
     glm_translate(model, position);
@@ -136,46 +136,62 @@ void animated_sprite_renderer_draw(
         (const GLfloat *)projection
     );
 
-    // View matrix
+    // Zoom first, then translate. cglm post-multiplies, so the view
+    // becomes S * T: the offset is applied in world (pre-zoom) units,
+    // which is what the camera_offset formula below assumes. Scaling
+    // after the translation (T * S) would divide the offset by `scale`
+    // and push the player off center by that factor.
     mat4 view;
     glm_mat4_identity(view);
 
+    float scale = 1.0f;
+    vec3 zoom = {scale, scale, 1.0f};
+    glm_scale(view, zoom);
 
+    // Center the camera on the player.
+    if (game->player != NULL) {
+        vec3 camera_offset = {
+            width / (2.0f * scale)
+                - game->player->transform.x
+                - game->player->transform.width / 2.0f,
 
-    vec3 camera_offset = {
-        width / 2.0f
-            - game->player->transform.x
-            - game->player->transform.width / 2.0f,
+            height / (2.0f * scale)
+                - game->player->transform.y
+                - game->player->transform.height / 2.0f,
 
-        height / 2.0f
-            - game->player->transform.y
-            - game->player->transform.height / 2.0f,
+            0.0f
+        };
 
-        0.0f
-    };
-
-    glm_translate(view, camera_offset);
-
+        glm_translate(view, camera_offset);
+    }
 
     glUniformMatrix4fv(
-        animatedShader->base.viewLoc,
-        1,
-        GL_FALSE,
-        (const GLfloat *)view
-    );
+            animatedShader->base.viewLoc,
+            1,
+            GL_FALSE,
+            (const GLfloat *)view
+            );
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    // Draw animated sprites
-    for (size_t i = 0; i < game->animated_count; i++) {
-        animated_sprite_t *object = &game->animated_objects[i];
+
+    // Draw animated sprites.
+    for (size_t i = 0; i < game->scene.count; i++) {
+        game_object_t *object = &game->scene.objects[i];
+
+        if (object->type != GAME_OBJECT_ANIMATED_SPRITE) {
+            continue;
+        }
+
+        animated_sprite_t *animated_sprite_object =
+            &object->data.animated_sprite;
 
         draw_animated_sprite(
                 r,
                 &r->animatedSpriteShader,
-                &object->transform,
-                &object->sprite,
-                &object->animation
+                &animated_sprite_object->transform,
+                &animated_sprite_object->sprite,
+                &animated_sprite_object->animation
                 );
     }
     glDisableVertexAttribArray(animatedShader->base.posLoc);

@@ -13,7 +13,8 @@
 #include "input.h"      // wayterra_keyboard_t, desktop_toplevel_at(); pulls in wayland-server-core.h, wlr_seat.h, wlr_input_device.h
 #include "server.h"     // wayterra_server_t, wayterra_output_t, wlr_scene.h, wlr_xdg_shell.h
 #include "pointer.h"    // server_new_pointer()
-#include "game.h"
+#include "game_input.h"
+
 struct xkb_rule_names rules = {
     .layout = USER_KEYMAP,
 };
@@ -175,6 +176,7 @@ static void wayterra_handle_key(
         wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 
     bool handled = false;
+
 
     /*
      * Route input to the game when game movement is enabled.

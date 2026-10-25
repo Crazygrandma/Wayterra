@@ -1,145 +1,22 @@
-#include "game.h"
+#include "game_internal.h"
+
 #include <time.h>
 
-// Screen covering tile grid (the view is 1920x1080 for now).
-#define TILE_SIZE 128.0f
-#define TILE_COLS 16
-#define TILE_ROWS 9
+#define TILE_WIDTH   32.0f
+#define TILE_HEIGHT  32.0f
 
-static void game_update_player_animation(wayterra_game_t *game)
-{
-    animated_sprite_t *player = game->player;
+// Temporary player position and size.
+#define PLAYER_X       0.0f
+#define PLAYER_Y       0.0f
+#define PLAYER_WIDTH   128.0f
+#define PLAYER_HEIGHT  128.0f
 
-    if (player == NULL) {
-        return;
-    }
+// Seconds each player animation frame is shown.
+#define PLAYER_SECONDS_PER_FRAME 0.1f
 
-    // Face the direction of movement.
-    if (game->move_left) {
-        player->sprite.inverted = true;
-    } else if (game->move_right) {
-        player->sprite.inverted = false;
-    }
-
-    bool walking = game->move_left || game->move_right;
-
-    if (walking) {
-        // Don't restart the animation if already walking.
-        if (player->animation.row != 1 ||
-            !player->animation.enabled) {
-            player->animation.row = 1;
-            player->animation.frameCount = 8;
-            player->animation.currentFrame = 0;
-            player->animation.enabled = true;
-        }
-    } else {
-        // Switch back to idle.
-        if (player->animation.row != 0 ||
-            player->animation.enabled) {
-            player->animation.row = 0;
-            player->animation.frameCount = 11;
-            player->animation.currentFrame = 0;
-            player->animation.enabled = false;
-        }
-    }
-}
-
-bool game_handle_key(
-    wayterra_game_t *game,
-    xkb_keysym_t key,
-    enum wl_keyboard_key_state state)
-{
-    bool pressed = state == WL_KEYBOARD_KEY_STATE_PRESSED;
-
-    if (!game->movement_mode) {
-        return false;
-    }
-
-    switch (key) {
-        case XKB_KEY_a:
-        case XKB_KEY_A:
-            game->move_left = pressed;
-            game_update_player_animation(game);
-            return true;
-
-        case XKB_KEY_d:
-        case XKB_KEY_D:
-            game->move_right = pressed;
-            game_update_player_animation(game);
-            return true;
-
-        case XKB_KEY_w:
-        case XKB_KEY_W:
-            game->move_up = pressed;
-            return true;
-
-        case XKB_KEY_s:
-        case XKB_KEY_S:
-            game->move_down = pressed;
-            return true;
-
-        default:
-            return false;
-    }
-}
-
-
-static tile_t *game_add_tile(
-    wayterra_game_t *game,
-    transform_t transform,
-    sprite_t sprite,
-    int id)
-{
-    if (game->tile_count >= MAX_GAME_OBJECTS) {
-        return NULL;
-    }
-
-    tile_t *tile = &game->tiles[game->tile_count++];
-
-    tile->transform = transform;
-    tile->sprite = sprite;
-    tile->id = id;
-
-    return tile;
-}
-
-static animated_sprite_t *game_add_animated_sprite(
-    wayterra_game_t *game,
-    transform_t transform,
-    sprite_t sprite,
-    animation_t animation)
-{
-    if (game->animated_count >= MAX_GAME_OBJECTS) {
-        return NULL;
-    }
-
-    animated_sprite_t *object =
-        &game->animated_objects[game->animated_count++];
-
-    object->transform = transform;
-    object->sprite = sprite;
-    object->animation = animation;
-
-    return object;
-}
-
-static game_sprite_t *game_add_sprite(
-    wayterra_game_t *game,
-    transform_t transform,
-    sprite_t sprite)
-{
-    if (game->sprite_count >= MAX_GAME_OBJECTS) {
-        return NULL;
-    }
-
-    game_sprite_t *object =
-        &game->sprites[game->sprite_count++];
-
-    object->transform = transform;
-    object->sprite = sprite;
-
-    return object;
-}
+// Floor dimensions in tiles.
+#define FLOOR_TILE_COLUMNS 50
+#define FLOOR_TILE_ROWS    6
 
 static double get_time(void)
 {
@@ -156,17 +33,71 @@ void game_init(wayterra_game_t *game)
     game->last_time = get_time();
     game->movement_mode = true;
 
-    float scale = 8.0f;
+    for (int row = 0; row < FLOOR_TILE_ROWS; row++) {
+        for (int column = 0; column < FLOOR_TILE_COLUMNS; column++) {
+            game_add_tile(
+                game,
+                (transform_t){
+                    .x = (float)column * TILE_WIDTH,
+                    .y = (float)(FLOOR_TILE_ROWS - 1 - row) * TILE_HEIGHT,
+                    .z = 0.0f,
+                    .width = TILE_WIDTH,
+                    .height = TILE_HEIGHT,
+                },
+                (sprite_t){
+                    .texturePath = "assets/tilesetTexture.png",
+                    .texture = 0,
+                    .inverted = false,
+                },
+                row == 0 ? 1 : 0
+            );
+        }
+    }
 
-    // Player: retain a pointer so input can change its animation.
+    // Single row of edge tiles above the top layer.
+    for (int column = 0; column < FLOOR_TILE_COLUMNS; column++) {
+        game_add_tile(
+            game,
+            (transform_t){
+                .x = (float)column * TILE_WIDTH,
+                .y = (float)FLOOR_TILE_ROWS * TILE_HEIGHT,
+                .z = 0.0f,
+                .width = TILE_WIDTH,
+                .height = TILE_HEIGHT,
+            },
+            (sprite_t){
+                .texturePath = "assets/tilesetTexture.png",
+                .texture = 0,
+                .inverted = false,
+            },
+            2
+        );
+    }
+
+    // game_add_sprite(
+    //     game,
+    //     (transform_t){
+    //         .x = SPRITE_X,
+    //         .y = SPRITE_Y,
+    //         .z = 0.0f,
+    //         .width = SPRITE_WIDTH,
+    //         .height = SPRITE_HEIGHT,
+    //     },
+    //     (sprite_t){
+    //         .texturePath = "assets/tilesetTexture.png",
+    //         .texture = 0,
+    //         .inverted = false,
+    //     }
+    // );
+
     game->player = game_add_animated_sprite(
         game,
         (transform_t){
-            .x = 0.0f,
-            .y = 0.0f,
+            .x = PLAYER_X,
+            .y = PLAYER_Y,
             .z = 0.0f,
-            .width = 40.0f * scale,
-            .height = 40.0f * scale,
+            .width = PLAYER_WIDTH,
+            .height = PLAYER_HEIGHT,
         },
         (sprite_t){
             .texturePath = "assets/playerAnim.png",
@@ -176,41 +107,16 @@ void game_init(wayterra_game_t *game)
         (animation_t){
             .row = 0,
             .rowCount = 2,
-            .frameCount = 10,
+            .frameCount = 11,
             .cellWidth = 64.0f,
             .cellHeight = 64.0f,
             .sheetWidth = 768.0f,
             .sheetHeight = 128.0f,
             .currentFrame = 0,
-            .timeToNextFrame = 0.1f,
+            .timeToNextFrame = PLAYER_SECONDS_PER_FRAME,
             .enabled = false,
         }
     );
-
-
-    // Individual tiles. All of them share one tileset texture, the id
-    // picks the tile inside the tileset.
-    for (int row = 0; row < TILE_ROWS; row++) {
-        for (int col = 0; col < TILE_COLS; col++) {
-            game_add_tile(
-                    game,
-                    (transform_t){
-                    .x = col * TILE_SIZE,
-                    .y = -row * TILE_SIZE,
-                    .z = 0.0f,
-                    .width = TILE_SIZE,
-                    .height = TILE_SIZE,
-                    },
-                    (sprite_t){
-                    .texturePath = "assets/tilemapsand.png",
-                    .texture = 0,
-                    .inverted = false,
-                    },
-                    (row + col) % 4
-                    );
-        }
-    }
-
 }
 
 void game_update(wayterra_game_t *game, float delta_time)

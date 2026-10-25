@@ -1,10 +1,15 @@
 #include "renderer_utils.h"
 #include "renderers/sprite_renderer.h"
+#include "game_scene.h"
+
 #include <wlr/util/log.h>
 
-void init_sprite_shader(sprite_shader_t *shader){
-
-    shader->base.program = create_shader_program_from_files("shaders/vertex.glsl","shaders/sprite.glsl");
+void init_sprite_shader(sprite_shader_t *shader)
+{
+    shader->base.program = create_shader_program_from_files(
+        "shaders/vertex.glsl",
+        "shaders/sprite.glsl"
+    );
 
     if (!shader->base.program) {
         wlr_log(WLR_ERROR, "Failed to create shader program");
@@ -14,12 +19,15 @@ void init_sprite_shader(sprite_shader_t *shader){
     wlr_log(WLR_DEBUG, "Shader program: %u", shader->base.program);
 
     shader->base.posLoc = glGetAttribLocation(shader->base.program, "aPos");
+
     shader->base.uvLoc = glGetAttribLocation(shader->base.program, "aUV");
-    
+
     shader->textureLoc = glGetUniformLocation(shader->base.program, "spriteTexture");
-    
+
     shader->base.projectionLoc = glGetUniformLocation(shader->base.program, "uProjection");
+
     shader->base.viewLoc = glGetUniformLocation(shader->base.program, "uView");
+
     shader->base.modelLoc = glGetUniformLocation(shader->base.program, "uModel");
 }
 
@@ -33,7 +41,6 @@ static void draw_sprite(
         return;
     }
 
-    // Model matrix
     mat4 model;
     glm_mat4_identity(model);
 
@@ -59,7 +66,6 @@ static void draw_sprite(
         (const GLfloat *)model
     );
 
-    // Sprite texture
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, sprite->texture);
     glUniform1i(shader->textureLoc, 0);
@@ -99,45 +105,68 @@ void sprite_renderer_draw(
     mat4 view;
     glm_mat4_identity(view);
 
-    vec3 camera_offset = {
-        width / 2.0f
-            - game->player->transform.x
-            - game->player->transform.width / 2.0f,
+    // TODO later add camera to scene with camera zoom
+    float scale = 1.0f; // e.g. 1.0f, 2.0f, 0.5f
 
-        height / 2.0f
-            - game->player->transform.y
-            - game->player->transform.height / 2.0f,
+    // Zoom first, then translate. cglm post-multiplies, so the view
+    // becomes S * T: the offset is applied in world (pre-zoom) units,
+    // which is what the camera_offset formula below assumes. Scaling
+    // after the translation (T * S) would divide the offset by `scale`
+    // and push the player off center by that factor.
+    vec3 zoom = {scale, scale, 1.0f};
+    glm_scale(view, zoom);
 
-        0.0f
-    };
+    // Center the camera on the player.
+    if (game->player != NULL) {
+        vec3 camera_offset = {
+            width / (2.0f * scale)
+                - game->player->transform.x
+                - game->player->transform.width / 2.0f,
 
-    glm_translate(view, camera_offset);
+            height / (2.0f * scale)
+                - game->player->transform.y
+                - game->player->transform.height / 2.0f,
+
+            0.0f
+        };
+
+        glm_translate(view, camera_offset);
+    }
+
     glUniformMatrix4fv(
-        shader->base.viewLoc,
-        1,
-        GL_FALSE,
-        (const GLfloat *)view
-    );
+            shader->base.viewLoc,
+            1,
+            GL_FALSE,
+            (const GLfloat *)view
+            );
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Draw regular sprites
-    for (size_t i = 0; i < game->sprite_count; i++) {
-        game_sprite_t *object = &game->sprites[i];
+    // Render only regular sprite objects.
+    for (size_t i = 0; i < game->scene.count; i++) {
+        game_object_t *object = &game->scene.objects[i];
+
+        if (object->type != GAME_OBJECT_SPRITE) {
+            continue;
+        }
+
+        game_sprite_t *sprite_object = &object->data.sprite;
 
         draw_sprite(
-                r,
-                &r->spriteShader,
-                &object->transform,
-                &object->sprite
-                );
+            r,
+            shader,
+            &sprite_object->transform,
+            &sprite_object->sprite
+        );
     }
 
-    glDisableVertexAttribArray(shader->base.posLoc);
+    glDisable(GL_BLEND);
 
+    glDisableVertexAttribArray(shader->base.posLoc);
     glDisableVertexAttribArray(shader->base.uvLoc);
 
+    glBindTexture(GL_TEXTURE_2D, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUseProgram(0);
 }

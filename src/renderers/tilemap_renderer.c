@@ -2,9 +2,6 @@
 #include "renderers/tilemap_renderer.h"
 #include <wlr/util/log.h>
 
-
-
-
 void init_tilemap_shader(tilemap_shader_t *shader){
 
     shader->base.program = create_shader_program_from_files("shaders/vertex.glsl","shaders/tilemap.glsl");
@@ -106,31 +103,41 @@ void tilemap_renderer_draw(
         (const GLfloat *)projection
     );
 
-    // View matrix: identity, the tilemap is drawn in screen space for now
-    // and should not follow the camera.
+    // Zoom first, then translate. cglm post-multiplies, so the view
+    // becomes S * T: the offset is applied in world (pre-zoom) units,
+    // which is what the camera_offset formula below assumes. Scaling
+    // after the translation (T * S) would divide the offset by `scale`
+    // and push the player off center by that factor.
     mat4 view;
     glm_mat4_identity(view);
 
-    vec3 camera_offset = {
-        width / 2.0f
-            - game->player->transform.x
-            - game->player->transform.width / 2.0f,
+    float scale = 1.0f;
+    vec3 zoom = {scale, scale, 1.0f};
+    glm_scale(view, zoom);
 
-        height / 2.0f
-            - game->player->transform.y
-            - game->player->transform.height / 2.0f,
+    // Center the camera on the player.
+    if (game->player != NULL) {
+        vec3 camera_offset = {
+            width / (2.0f * scale)
+                - game->player->transform.x
+                - game->player->transform.width / 2.0f,
 
-        0.0f
-    };
+            height / (2.0f * scale)
+                - game->player->transform.y
+                - game->player->transform.height / 2.0f,
 
-    glm_translate(view, camera_offset);
+            0.0f
+        };
+
+        glm_translate(view, camera_offset);
+    }
 
     glUniformMatrix4fv(
-        shader->base.viewLoc,
-        1,
-        GL_FALSE,
-        (const GLfloat *)view
-    );
+            shader->base.viewLoc,
+            1,
+            GL_FALSE,
+            (const GLfloat *)view
+            );
 
     glEnable(GL_BLEND);
 
@@ -141,8 +148,14 @@ void tilemap_renderer_draw(
     glDisable(GL_DEPTH_TEST);
 
     // One draw call per tile.
-    for (size_t i = 0; i < game->tile_count; i++) {
-        tile_t *tile = &game->tiles[i];
+    for (size_t i = 0; i < game->scene.count; i++) {
+        game_object_t *object = &game->scene.objects[i];
+
+        if (object->type != GAME_OBJECT_TILE) {
+            continue;
+        }
+
+        tile_t *tile = &object->data.tile;
 
         draw_tile(
                 r,

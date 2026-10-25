@@ -301,9 +301,13 @@ static void update_movement(wayterra_server_t *server)
     if (server->game.move_down)
         dy -= PLAYER_SPEED;
 
-    // Move the player in the game world.
-    server->game.player->transform.x += dx;
-    server->game.player->transform.y += dy;
+    // Move the player in the game world. game_world_init() hasn't created
+    // one yet, so this may be NULL until a player is spawned.
+    animated_sprite_t *player = server->game.player;
+    if (player != NULL) {
+        player->transform.x += dx;
+        player->transform.y += dy;
+    }
 
     // Move clients in the opposite direction to simulate
     // the world moving with the player.

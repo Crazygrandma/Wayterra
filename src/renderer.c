@@ -44,36 +44,38 @@ static void init_vertex_buffer(wayterra_renderer_t *r)
 
 static void init_textures(wayterra_renderer_t *r, wayterra_game_t *game)
 {
-    // Regular sprites
-    for (size_t i = 0; i < game->sprite_count; i++) {
-        sprite_t *sprite = &game->sprites[i].sprite;
+    GLuint tileset = 0;
 
-        if (sprite->texturePath == NULL) {
+    for (size_t i = 0; i < game->scene.count; i++) {
+        game_object_t *object = &game->scene.objects[i];
+        sprite_t *sprite = NULL;
+
+        switch (object->type) {
+        case GAME_OBJECT_SPRITE:
+            sprite = &object->data.sprite.sprite;
+            break;
+
+        case GAME_OBJECT_ANIMATED_SPRITE:
+            sprite = &object->data.animated_sprite.sprite;
+            break;
+
+        case GAME_OBJECT_TILE:
+            sprite = &object->data.tile.sprite;
+
+            // All tiles share the same tileset texture.
+            if (tileset == 0 && sprite->texturePath != NULL) {
+                tileset = load_texture(sprite->texturePath);
+            }
+
+            sprite->texture = tileset;
+            continue;
+        }
+
+        if (sprite == NULL || sprite->texturePath == NULL) {
             continue;
         }
 
         sprite->texture = load_texture(sprite->texturePath);
-    }
-
-    // Animated sprites
-    for (size_t i = 0; i < game->animated_count; i++) {
-        sprite_t *sprite = &game->animated_objects[i].sprite;
-
-        if (sprite->texturePath == NULL) {
-            continue;
-        }
-
-        sprite->texture = load_texture(sprite->texturePath);
-    }
-
-    // Tiles: every tile samples the same tileset, so it is loaded once
-    // and shared by all of them.
-    if (game->tile_count > 0 && game->tiles[0].sprite.texturePath != NULL) {
-        GLuint tileset = load_texture(game->tiles[0].sprite.texturePath);
-
-        for (size_t i = 0; i < game->tile_count; i++) {
-            game->tiles[i].sprite.texture = tileset;
-        }
     }
 }
 
@@ -89,7 +91,7 @@ void initialize_renderer(
     init_sprite_shader(&r->spriteShader);
     init_animated_sprite_shader(&r->animatedSpriteShader);
     init_tilemap_shader(&r->tilemapShader);
-       
+
     if (!r->spriteShader.base.program) {
         return;
     }
@@ -106,7 +108,6 @@ void initialize_renderer(
 }
 
 
-
 void renderer_draw_frame(
     wayterra_renderer_t *r,
     wayterra_game_t *game,
@@ -118,7 +119,8 @@ void renderer_draw_frame(
     }
 
     if (!r->initialized) {
-        wlr_log(WLR_ERROR, "Renderer initialization failed; skipping frame");
+        wlr_log(WLR_ERROR,
+            "Renderer initialization failed; skipping frame");
         return;
     }
 
@@ -126,10 +128,10 @@ void renderer_draw_frame(
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(0.298f, 0.267f, 0.650f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     tilemap_renderer_draw(r, game, width, height);
-    // sprite_renderer_draw(r, game, width, height);
+    sprite_renderer_draw(r, game, width, height);
     animated_sprite_renderer_draw(r, game, width, height);
 }
