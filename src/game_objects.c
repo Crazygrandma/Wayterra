@@ -1,5 +1,4 @@
 #include "game_internal.h"
-
 game_object_t *game_scene_add_object(
     game_scene_t *scene,
     game_object_type_t type)
