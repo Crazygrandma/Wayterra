@@ -21,7 +21,7 @@
 void setup(wayterra_server_t *server)
 {
     /* Logging */
-    wlr_log_init(WLR_INFO, NULL);
+    wlr_log_init(WLR_DEBUG, NULL);
 
     /* Wayland display */
     server->wl_display = wl_display_create();

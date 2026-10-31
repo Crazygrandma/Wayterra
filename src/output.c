@@ -286,7 +286,7 @@ void server_new_output(struct wl_listener *listener, void *data) {
 
 }
 
-static void update_movement(wayterra_server_t *server)
+static void update_movement(wayterra_server_t *server, float delta_time)
 {
     float dx = 0.0f;
     float dy = 0.0f;
@@ -301,6 +301,9 @@ static void update_movement(wayterra_server_t *server)
     if (server->game.move_down)
         dy -= PLAYER_SPEED;
 
+    dx *= delta_time;
+    dy *= delta_time;
+
     // Move clients in the opposite direction to simulate
     // the world moving with the player.
     struct wayterra_toplevel *toplevel;
@@ -308,8 +311,8 @@ static void update_movement(wayterra_server_t *server)
     wl_list_for_each(toplevel, &server->toplevels, link) {
         wlr_scene_node_set_position(
             &toplevel->scene_tree->node,
-            toplevel->scene_tree->node.x - dx,
-            toplevel->scene_tree->node.y + dy
+            toplevel->scene_tree->node.x - (int)dx,
+            toplevel->scene_tree->node.y + (int)dy
         );
     }
 }
@@ -387,7 +390,7 @@ void output_frame(struct wl_listener *listener, void *data) {
                 
 
             
-            update_movement(server);
+            update_movement(server, (float)delta_time);
             game_update(&server->game, (float)delta_time);
             renderer_draw_frame( r, &server->game, game_buffer->width, game_buffer->height);
         }

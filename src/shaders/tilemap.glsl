@@ -8,7 +8,7 @@ uniform float tileId;
 
 void main()
 {
-    float tilesetSize = 2.0;
+    float tilesetSize = 8.0;
     float tileSize = 1.0 / tilesetSize;
 
     float column = mod(tileId, tilesetSize);

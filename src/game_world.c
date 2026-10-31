@@ -61,7 +61,34 @@ void game_world_init(wayterra_game_t *game)
             2
         );
     }
-
+    //
+    // game_add_animated_sprite(
+    //     game,
+    //     (transform_t){
+    //         .x = 100.0f,
+    //         .y = 100.0f,
+    //         .z = 0.0f,
+    //         .width = 32.f,
+    //         .height = 64.f,
+    //     },
+    //     (sprite_t){
+    //         .texturePath = "assets/campfireSpritesheet.png",
+    //         .texture = 0,
+    //         .inverted = false,
+    //     },
+    //     (animation_t){
+    //         .row = 0,
+    //         .rowCount = 1,
+    //         .frameCount = 19,
+    //         .cellWidth = 16.0f,
+    //         .cellHeight = 32.0f,
+    //         .sheetWidth = 304.0f,
+    //         .sheetHeight = 32.0f,
+    //         .currentFrame = 0,
+    //         .timeToNextFrame = PLAYER_SECONDS_PER_FRAME,
+    //         .enabled = false,
+    //     }
+    // );
 
     game->player = game_add_animated_sprite(
         game,

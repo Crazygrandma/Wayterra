@@ -12,7 +12,7 @@
 #define NUM_TILES 30.0
 
 // Edit to change the player walking speed
-#define PLAYER_SPEED 5
+#define PLAYER_SPEED 300
 
 // Edit to change the modifier key 
 // WlR_MODIFIER_LOGO = Windows key

@@ -1,4 +1,5 @@
 #include "game_input.h"
+#include "config.h"
 
 static void update_player_animation(wayterra_game_t *game)
 {
@@ -72,19 +73,6 @@ bool game_handle_key(
         return false;
     }
 
-    // float dx = 0.0f;
-    // float dy = 0.0f;
-    //
-    // dx -= PLAYER_SPEED;
-    // dx += PLAYER_SPEED;
-    //
-    // dy += PLAYER_SPEED;
-    // dy -= PLAYER_SPEED;
-    //
-    // if (player != NULL) {
-    //     player->transform.x += dx;
-    //     player->transform.y += dy;
-    // }
     update_player_animation(game);
     return true;
 }
