@@ -109,3 +109,7 @@ make clean
 | `Alt + Enter` | Spawn Alacritty terminal |
 | `Alt + B` | Spawn Firefox |
 | `Alt + R` | Spawn OBS Studio |
+| `Alt + Q` | Kill a focused client (make sure to click on it first) |
+| `Alt + Esc` | Quit wayterra |
+
+If no client is focused you can move around with WASD
