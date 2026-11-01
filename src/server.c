@@ -136,8 +136,10 @@ void setup(wayterra_server_t *server)
 			&server->cursor_motion_absolute);
 	server->cursor_button.notify = server_cursor_button;
 	wl_signal_add(&server->cursor->events.button, &server->cursor_button);
-
-
+	server->cursor_axis.notify = server_cursor_axis;
+	wl_signal_add(&server->cursor->events.axis, &server->cursor_axis);
+	server->cursor_frame.notify = server_cursor_frame;
+	wl_signal_add(&server->cursor->events.frame, &server->cursor_frame);
 
     /* Scene graph */
     server->scene = wlr_scene_create();

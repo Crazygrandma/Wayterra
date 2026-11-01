@@ -204,3 +204,26 @@ void server_cursor_motion_absolute(
 	process_cursor_motion(server, event->time_msec);
 }
 
+void server_cursor_axis(struct wl_listener *listener, void *data) {
+	/* This event is forwarded by the cursor when a pointer emits an axis event,
+	 * for example when you move the scroll wheel. */
+	wayterra_server_t *server =
+		wl_container_of(listener, server, cursor_axis);
+	struct wlr_pointer_axis_event *event = data;
+	/* Notify the client with pointer focus of the axis event. */
+	wlr_seat_pointer_notify_axis(server->seat,
+			event->time_msec, event->orientation, event->delta,
+			event->delta_discrete, event->source, event->relative_direction);
+}
+
+
+void server_cursor_frame(struct wl_listener *listener, void *data) {
+	/* This event is forwarded by the cursor when a pointer emits an frame
+	 * event. Frame events are sent after regular pointer events to group
+	 * multiple events together. For instance, two axis events may happen at the
+	 * same time, in which case a frame event won't be sent in between. */
+	wayterra_server_t *server =
+		wl_container_of(listener, server, cursor_frame);
+	/* Notify the client with pointer focus of the frame event. */
+	wlr_seat_pointer_notify_frame(server->seat);
+}

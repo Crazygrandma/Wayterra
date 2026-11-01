@@ -10,7 +10,8 @@ void server_new_pointer(wayterra_server_t *server, struct wlr_input_device *devi
 void server_cursor_button(struct wl_listener *listener, void *data);
 void server_cursor_motion_absolute(struct wl_listener *listener, void *data);
 void server_cursor_motion(struct wl_listener *listener, void *data);
-
+void server_cursor_axis(struct wl_listener *listener, void *data);
+void server_cursor_frame(struct wl_listener *listener, void *data);
 
 void process_cursor_motion(wayterra_server_t *server, uint32_t time);
 void process_cursor_resize(wayterra_server_t *server);
