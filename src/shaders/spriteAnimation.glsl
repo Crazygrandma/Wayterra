@@ -16,7 +16,7 @@ uniform sampler2D animationTexture;
 void main()
 {
     float frame = mod(floor(uTime / uTimePerFrame), uFrameCount);
-
+    //
     vec2 uv;
     // uCellWidthUV (not uFrameCount) defines the horizontal slice, so an
     // animation shorter than the sheet width still samples a single cell
@@ -25,6 +25,10 @@ void main()
     // 1.0 - vUV.y flip cancels the Y flip of the FBO -> scene buffer path,
     // so rows stay indexed top-down (uRow 0 = top row of the sheet)
     uv.y = (uRow + 1.0 - vUV.y) / uRowCount;
-
+    //
     gl_FragColor = texture2D(animationTexture, uv);
+
+    // DEBUG (uv constant)
+    //vec2 uv = vUV;
+    //gl_FragColor = vec4(uv.x, uv.y, 0.0, 1.0);
 }

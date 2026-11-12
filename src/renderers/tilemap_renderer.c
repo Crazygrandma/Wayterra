@@ -111,7 +111,7 @@ void tilemap_renderer_draw(
     mat4 view;
     glm_mat4_identity(view);
 
-    float scale = 1.0f;
+    float scale = game->cameraZoom;
     vec3 zoom = {scale, scale, 1.0f};
     glm_scale(view, zoom);
 

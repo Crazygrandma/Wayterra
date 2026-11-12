@@ -13,6 +13,11 @@ typedef struct {
 
     float playerX;
     float playerY;
+    float playerVelX;
+    float playerVelY;
+    // Previous-frame state of move_up, used to detect jump presses.
+    bool moveUpPrev;
+
     float cameraZoom;
 
     double timer;
